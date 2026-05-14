@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserIdFromCookies } from "@/lib/auth";
 
-const MAX_HISTORY_MESSAGES = 20;
-const SUMMARIZE_THRESHOLD = 30;
+const CONTEXT_BUDGET = 8000;
+const SUMMARIZE_INTERVAL = 12;
+const SUMMARIZE_TRIGGER = 20;
 
 function estimateTokens(text: string): number {
   const chinese = (text.match(/[\u4e00-\u9fff]/g) || []).length;
@@ -19,7 +20,7 @@ async function generateSummary(
 ): Promise<string | null> {
   if (messages.length === 0) return null;
   const convoText = messages
-    .map((m) => `${m.role === "user" ? "用户" : "AI"}: ${m.content.substring(0, 200)}`)
+    .map((m) => `${m.role === "user" ? "用户" : "AI"}: ${m.content.substring(0, 300)}`)
     .join("\n");
 
   try {
@@ -29,19 +30,82 @@ async function generateSummary(
       body: JSON.stringify({
         model: modelT,
         messages: [
-          { role: "system", content: "你是一个摘要助手。请把以下对话压缩成一段 200 字以内的中文摘要，保留关键话题、重要信息和用户的核心需求。" },
+          { role: "system", content: "你是一个对话摘要助手。请将以下对话压缩成一段300字以内的中文摘要，保留：1)关键话题和结论 2)用户的偏好和需求 3)未解决的问题。不要遗漏重要细节。" },
           { role: "user", content: convoText },
         ],
-        max_tokens: 400,
+        max_tokens: 500,
         temperature: 0.3,
       }),
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      console.error("[Summary] API failed:", response.status);
+      return null;
+    }
     const data = await response.json();
-    return data.choices?.[0]?.message?.content?.substring(0, 500) || null;
-  } catch {
+    return data.choices?.[0]?.message?.content?.substring(0, 600) || null;
+  } catch (err) {
+    console.error("[Summary] Exception:", err);
     return null;
   }
+}
+
+function assembleMessagesWithBudget(
+  history: { role: string; content: string }[],
+  summary: string | null,
+  memories: string[],
+  currentMessage: string,
+  searchContext: string,
+  budget: number
+): { role: string; content: string }[] {
+  const result: { role: string; content: string }[] = [];
+
+  if (searchContext) {
+    const sc = `【联网搜索结果】（仅用于本轮回答，不会保存到聊天记录）\n\n${searchContext}\n\n请基于以上搜索结果回答用户问题。优先使用搜索结果中的事实信息，在关键信息后标注来源编号如[来源1]。`;
+    result.push({ role: "system", content: sc });
+    budget -= estimateTokens(sc);
+  }
+
+  const systemPrompt = searchContext
+    ? "你是一个联网搜索助手。"
+    : "你是 Cloud Drive 的 AI 助手。请牢记对话上下文，理解用户的追问、代词指代（'刚才说的'、'那个'、'它'）和省略表达。用中文作答。";
+  result.push({ role: "system", content: systemPrompt });
+  budget -= estimateTokens(systemPrompt);
+
+  if (summary && !searchContext) {
+    const sumText = `【历史对话摘要】\n${summary}\n\n（以上是你们之前的对话概要，用户可能会引用之前讨论过的内容。）`;
+    result.push({ role: "system", content: sumText });
+    budget -= estimateTokens(sumText);
+  }
+
+  if (memories.length > 0 && !searchContext) {
+    const memText = `【用户要求你记住的信息】\n${memories.map((m) => `- ${m}`).join("\n")}\n\n（请在回答中适时参考以上信息。）`;
+    result.push({ role: "system", content: memText });
+    budget -= estimateTokens(memText);
+  }
+
+  const curTokens = estimateTokens(currentMessage);
+  const budgetForHistory = budget - curTokens;
+
+  let historyTokens = 0;
+  const selectedHistory: typeof history = [];
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    const tok = estimateTokens(msg.content);
+    if (historyTokens + tok <= budgetForHistory) {
+      historyTokens += tok;
+      selectedHistory.unshift(msg);
+    } else {
+      break;
+    }
+  }
+
+  for (const msg of selectedHistory) {
+    result.push({ role: msg.role, content: msg.content });
+  }
+
+  result.push({ role: "user", content: currentMessage });
+
+  return result;
 }
 
 export async function POST(request: NextRequest) {
@@ -100,60 +164,33 @@ export async function POST(request: NextRequest) {
 
   const searchContext = typeof context === "string" && context.length > 0 ? context : "";
 
-  const historyMessages = await prisma.aIMessage.findMany({
-    where: { conversationId: convId },
-    orderBy: { createdAt: "asc" },
-    take: MAX_HISTORY_MESSAGES,
-  });
-
   const convData = await prisma.aIConversation.findUnique({
     where: { id: convId },
     select: { summary: true, lastSummarizedId: true },
   });
+
+  const allRecentMessages = await prisma.aIMessage.findMany({
+    where: { conversationId: convId },
+    orderBy: { createdAt: "desc" },
+    take: 40,
+  });
+  const recentMessages = allRecentMessages.reverse();
 
   const memories = await prisma.aIMemory.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
     take: 10,
   });
+  const memoryContents = memories.map((m) => m.content);
 
-  const chatMessages: { role: string; content: string }[] = [];
-
-  if (searchContext) {
-    chatMessages.push({
-      role: "system",
-      content: `【联网搜索结果】（仅用于本轮回答，不会保存到聊天记录）\n\n${searchContext}\n\n请基于以上搜索结果回答用户问题。优先使用搜索结果中的事实信息，在关键信息后标注来源编号如[来源1]。若搜索结果信息不足，可以结合你的知识进行补充。`,
-    });
-  }
-
-  if (convData?.summary && !searchContext) {
-    chatMessages.push({
-      role: "system",
-      content: `【历史对话摘要】\n${convData.summary}\n\n请记住以上是你们之前的对话概要，用户可能会引用之前讨论过的内容。`,
-    });
-  } else {
-    chatMessages.push({
-      role: "system",
-      content: searchContext
-        ? "你是一个联网搜索助手。"
-        : "你是 Cloud Drive 的 AI 助手。请记住对话上下文，理解用户的追问、代词指代和省略表达。如果用户说\'刚才说的\'、\'那个\'、\'它\'等，请根据之前的对话来理解指代内容。用中文回答。",
-    });
-  }
-
-  if (memories.length > 0 && !searchContext) {
-    chatMessages.push({
-      role: "system",
-      content: `【用户要求你记住的信息（长期记忆）】\n${memories.map((m) => `- ${m.content}`).join("\n")}\n\n请在回答中适时参考以上信息。`,
-    });
-  }
-
-  for (const msg of historyMessages) {
-    if (msg.role === "user" || msg.role === "assistant") {
-      chatMessages.push({ role: msg.role, content: msg.content });
-    }
-  }
-
-  chatMessages.push({ role: "user", content: originalContent });
+  const chatMessages = assembleMessagesWithBudget(
+    recentMessages.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+    convData?.summary || null,
+    memoryContents,
+    originalContent,
+    searchContext,
+    CONTEXT_BUDGET
+  );
 
   const userInputTokens = estimateTokens(originalContent) + estimateTokens(searchContext);
   await prisma.aIMessage.create({
@@ -177,7 +214,7 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue(encoder.encode(JSON.stringify({ status: "thinking" }) + "\n"));
-        const chars = reply.split("");
+        const chars = [...reply];
         let i = 0;
         function push() {
           if (i < chars.length) {
@@ -264,31 +301,37 @@ export async function POST(request: NextRequest) {
                 controller.enqueue(encoder.encode("[DONE]\n"));
 
                 if (fullReply) {
-                  await prisma.aIMessage.create({
+                  const saved = await prisma.aIMessage.create({
                     data: { conversationId: convId, role: "assistant", content: fullReply },
                   });
-                }
-                await prisma.aIConversation.update({
-                  where: { id: convId },
-                  data: { updatedAt: new Date() },
-                });
-                await prisma.user.update({
-                  where: { id: userId },
-                  data: { tokenQuota: newQuota },
-                });
-                await prisma.aIUsageLog.create({
-                  data: { userId, model: modelT, tokens: totalTokens },
-                });
+                  await prisma.aIConversation.update({
+                    where: { id: convId },
+                    data: { updatedAt: new Date() },
+                  });
+                  await prisma.user.update({
+                    where: { id: userId },
+                    data: { tokenQuota: newQuota },
+                  });
+                  await prisma.aIUsageLog.create({
+                    data: { userId, model: modelT, tokens: totalTokens },
+                  });
 
-                const totalMsgCount = await prisma.aIMessage.count({
-                  where: { conversationId: convId },
-                });
-                if (
-                  totalMsgCount > SUMMARIZE_THRESHOLD &&
-                  !convData?.summary &&
-                  hasApiKey
-                ) {
-                  generateAndSaveSummary(convId, apiUrl, apiKey, modelT);
+                  const totalMsgCount = await prisma.aIMessage.count({
+                    where: { conversationId: convId },
+                  });
+
+                  if (hasApiKey && saved) {
+                    handleRollingSummary(
+                      convId,
+                      apiUrl,
+                      apiKey,
+                      modelT,
+                      convData?.summary || null,
+                      convData?.lastSummarizedId || null,
+                      saved.id,
+                      totalMsgCount
+                    );
+                  }
                 }
 
                 controller.close();
@@ -397,45 +440,80 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function generateAndSaveSummary(
+async function handleRollingSummary(
   convId: number,
   apiUrl: string,
   apiKey: string,
-  modelT: string
+  modelT: string,
+  existingSummary: string | null,
+  lastSummarizedId: number | null,
+  latestMsgId: number,
+  totalMsgCount: number
 ) {
   try {
-    const allMessages = await prisma.aIMessage.findMany({
-      where: { conversationId: convId },
-      orderBy: { createdAt: "asc" },
-      take: 20,
-    });
+    const msgsSinceLastSummary = lastSummarizedId
+      ? await prisma.aIMessage.findMany({
+          where: { conversationId: convId, id: { gt: lastSummarizedId } },
+          orderBy: { createdAt: "asc" },
+        })
+      : [];
 
-    if (allMessages.length < 10) return;
+    const newMsgCount = msgsSinceLastSummary.length;
 
-    const mid = Math.floor(allMessages.length / 2);
-    const earlyMessages = allMessages.slice(0, mid);
-    const lastEarlyMsg = earlyMessages[earlyMessages.length - 1];
-
-    const summary = await generateSummary(
-      earlyMessages.map((m) => ({ role: m.role, content: m.content })),
-      apiUrl,
-      apiKey,
-      modelT
-    );
-
-    if (summary) {
-      await prisma.aIConversation.update({
-        where: { id: convId },
-        data: {
-          summary,
-          summaryTokens: estimateTokens(summary),
-          lastSummarizedId: lastEarlyMsg.id,
-        },
+    if (!existingSummary && totalMsgCount >= SUMMARIZE_TRIGGER) {
+      const earlyMsgs = await prisma.aIMessage.findMany({
+        where: { conversationId: convId },
+        orderBy: { createdAt: "asc" },
+        take: Math.floor(totalMsgCount * 0.6),
       });
-      console.log(`[Chat Memory] Summary generated for conversation ${convId}, ${summary.length} chars`);
+
+      if (earlyMsgs.length < 10) return;
+
+      const summary = await generateSummary(
+        earlyMsgs.map((m) => ({ role: m.role, content: m.content })),
+        apiUrl,
+        apiKey,
+        modelT
+      );
+
+      if (summary) {
+        const lastEarlyId = earlyMsgs[earlyMsgs.length - 1].id;
+        await prisma.aIConversation.update({
+          where: { id: convId },
+          data: {
+            summary,
+            summaryTokens: estimateTokens(summary),
+            lastSummarizedId: lastEarlyId,
+          },
+        });
+      }
+      return;
+    }
+
+    if (existingSummary && newMsgCount >= SUMMARIZE_INTERVAL) {
+      const summaryInput = existingSummary
+        ? [
+            { role: "system", content: "以下是之前的对话摘要。请将新增内容融入其中，生成一个更新后的完整摘要。" },
+            { role: "assistant", content: existingSummary },
+          ]
+        : [];
+      summaryInput.push(...msgsSinceLastSummary.map((m) => ({ role: m.role, content: m.content })));
+
+      const updatedSummary = await generateSummary(summaryInput, apiUrl, apiKey, modelT);
+
+      if (updatedSummary) {
+        await prisma.aIConversation.update({
+          where: { id: convId },
+          data: {
+            summary: updatedSummary,
+            summaryTokens: estimateTokens(updatedSummary),
+            lastSummarizedId: latestMsgId,
+          },
+        });
+      }
     }
   } catch (err) {
-    console.error("[Chat Memory] Summary generation failed:", err);
+    console.error("[Chat Memory] Rolling summary failed:", err);
   }
 }
 

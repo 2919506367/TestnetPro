@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Cloud, Search, LogOut, FolderOpen, Files, Clock, Trash2, Plus,
   ChevronRight, HardDrive, FolderPlus, Home, HardDrive as HardDriveIcon,
-  Crown, Shield, Sparkles, MessageCircle, Bot, Smile
+  Crown, Shield, Sparkles, MessageCircle, Bot, Smile, Play
 } from "lucide-react";
 import UploadArea from "@/components/UploadArea";
 import FileList from "@/components/FileList";
@@ -186,6 +186,9 @@ function DrivePage() {
           </button>
           <button onClick={() => router.push("/emoticons")} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-all">
             <Smile className="w-4.5 h-4.5 flex-shrink-0 text-amber-500" /> 表情管理
+          </button>
+          <button onClick={() => router.push("/shorts")} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 hover:bg-gray-100 transition-all">
+            <Play className="w-4.5 h-4.5 flex-shrink-0 text-pink-500" /> B站短视频
           </button>
           <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-500 cursor-not-allowed" disabled>
             <Clock className="w-4.5 h-4.5 flex-shrink-0 text-gray-300" /> 最近上传
