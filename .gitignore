@@ -36,6 +36,27 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local storage (user uploads)
+/storage/uploads/*
+!/storage/uploads/.gitkeep
+
+# prisma sqlite database
+/prisma/dev.db
+/prisma/dev.db-journal
+
+# prisma generated client (auto-generated)
+/lib/generated/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# archives
+*.zip
+*.tar.gz
+*.rar
+
+# local notes
+联网搜索解决方案.txt
+
+/lib/generated/prisma
