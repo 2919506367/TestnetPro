@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import {
   Play, Pause, Volume2, VolumeX, RotateCcw, AlertCircle,
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
-  Search, X, User, RefreshCw,
+  Search, X, User, RefreshCw, ChevronRight, ChevronLeft,
 } from "lucide-react";
 
 /* ============ Types ============ */
@@ -34,10 +34,6 @@ interface CommentItem {
   rpid: number; content: string; author: string;
   authorMid: number; authorFace: string;
   likeCount: number; replyCount: number; createdAt: number;
-}
-
-interface DanmakuItem {
-  text: string; time: number; mode: number; color: string; size: number;
 }
 
 interface SearchResult { results: any[]; source: string; type: string; }
@@ -78,6 +74,7 @@ function ShortsApp() {
   const [showComments, setShowComments] = useState(false);
   const [showDanmaku, setShowDanmaku] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [rightPanelAnimating, setRightPanelAnimating] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
@@ -106,10 +103,6 @@ function ShortsApp() {
         });
         setSeed(data.nextSeed || s + 1);
       } else {
-        setVideos((prev) => {
-          const ids = new Set(prev.map((v) => v.id));
-          return prev.length > 0 ? prev : [];
-        });
         if (videos.length === 0) setError("暂无新内容，请稍后再试");
       }
     } catch {
@@ -141,7 +134,7 @@ function ShortsApp() {
   useEffect(() => {
     let wheelAccum = 0;
     const onWheel = (e: WheelEvent) => {
-      if (showSearch || showComments || showUserProfile) return;
+      if (showSearch || showComments || showUserProfile || rightPanelAnimating) return;
       e.preventDefault();
       wheelAccum += e.deltaY;
       if (wheelAccum > 50 && activeIndex < videos.length - 1) {
@@ -153,23 +146,23 @@ function ShortsApp() {
       }
     };
     const onKey = (e: KeyboardEvent) => {
-      if (showSearch || showComments || showUserProfile) return;
+      if (showSearch || showComments || showUserProfile || rightPanelAnimating) return;
       if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); setActiveIndex((p) => Math.min(p + 1, videos.length - 1)); }
       if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); setActiveIndex((p) => Math.max(p - 1, 0)); }
     };
     window.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKey);
     return () => { window.removeEventListener("wheel", onWheel); window.removeEventListener("keydown", onKey); };
-  }, [activeIndex, videos.length, showSearch, showComments, showUserProfile]);
+  }, [activeIndex, videos.length, showSearch, showComments, showUserProfile, rightPanelAnimating]);
 
   const showControlsTemp = () => {
     setShowControls(true);
     if (controlsTimer.current != null) clearTimeout(controlsTimer.current);
-    controlsTimer.current = setTimeout(() => setShowControls(false), 3500);
+    controlsTimer.current = setTimeout(() => setShowControls(false), 4000);
   };
 
   useEffect(() => {
-    controlsTimer.current = setTimeout(() => setShowControls(false), 3500);
+    controlsTimer.current = setTimeout(() => setShowControls(false), 4000);
     return () => { if (controlsTimer.current != null) clearTimeout(controlsTimer.current); };
   }, []);
 
@@ -182,13 +175,24 @@ function ShortsApp() {
 
   const activeVideo = videos[activeIndex] || null;
 
+  const openComments = () => {
+    setRightPanelAnimating(true);
+    setShowComments(true);
+    setTimeout(() => setRightPanelAnimating(false), 350);
+  };
+
+  const closeComments = () => {
+    setRightPanelAnimating(true);
+    setShowComments(false);
+    setTimeout(() => setRightPanelAnimating(false), 350);
+  };
+
   return (
     <div className="fixed inset-0 bg-black z-40 overflow-hidden" onMouseMove={showControlsTemp} onTouchStart={showControlsTemp}>
+      {/* Video cards container */}
       <div ref={containerRef} className="h-full w-full snap-y snap-mandatory scrollbar-none" style={{ scrollSnapType: "y mandatory", overflowY: "hidden" }}>
         {loading && videos.length === 0 ? (
-          <div className="snap-start h-full w-full flex items-center justify-center">
-            <LoadingScreen />
-          </div>
+          <div className="snap-start h-full w-full flex items-center justify-center"><LoadingScreen /></div>
         ) : error && videos.length === 0 ? (
           <div className="snap-start h-full w-full flex items-center justify-center">
             <div className="text-center px-6">
@@ -220,6 +224,7 @@ function ShortsApp() {
         )}
       </div>
 
+      {/* Player Overlay */}
       {activeVideo && (
         <PlayerOverlay
           video={activeVideo}
@@ -231,102 +236,99 @@ function ShortsApp() {
         />
       )}
 
-      {/* Top Controls */}
-      {showControls && (
-        <>
-          <div className="fixed top-4 left-4 right-4 z-50 flex gap-2">
-            <button
-              onClick={() => setShowSearch(!showSearch)}
-              className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs hover:bg-white/20 flex items-center gap-1.5"
-            >
-              <Search className="w-3 h-3" /> 搜索
-            </button>
-            <button
-              onClick={() => setForceProxy(!forceProxy)}
-              className={`px-3 py-1.5 rounded-full backdrop-blur-sm text-xs hover:bg-white/20 flex items-center gap-1.5 ${forceProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/70"}`}
-            >
-              {forceProxy ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
-              {forceProxy ? "代理" : "直连"}
-            </button>
-            <div className="flex gap-1 ml-auto">
-              {QN_OPTIONS.map((opt) => (
-                <button
-                  key={opt}
-                  onClick={() => setQn(opt)}
-                  className={`px-2 py-1 rounded text-[10px] font-medium ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50 hover:bg-white/20"}`}
-                >
-                  {QN_MAP[opt]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <button
-            onClick={refreshFeed}
-            className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs hover:bg-white/20 flex items-center gap-1.5"
-          >
+      {/* Top bar - controls that auto-hide */}
+      <div className={`fixed top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/60 to-transparent pt-3 pb-8 px-4 transition-opacity duration-500 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowSearch(true)} className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs hover:bg-white/20 flex items-center gap-1.5">
+            <Search className="w-3 h-3" /> 搜索
+          </button>
+          <button onClick={() => setForceProxy(!forceProxy)} className={`px-3 py-1.5 rounded-full backdrop-blur-sm text-xs hover:bg-white/20 flex items-center gap-1.5 ${forceProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/70"}`}>
+            {forceProxy ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
+            {forceProxy ? "代理" : "直连"}
+          </button>
+          <button onClick={refreshFeed} className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm text-white text-xs hover:bg-white/20 flex items-center gap-1.5">
             <RefreshCw className="w-3 h-3" /> 换一换
           </button>
-        </>
-      )}
+          <div className="flex gap-1 ml-auto">
+            {QN_OPTIONS.map((opt) => (
+              <button key={opt} onClick={() => setQn(opt)}
+                className={`px-2 py-1 rounded text-[10px] font-medium ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50 hover:bg-white/20"}`}
+              >{QN_MAP[opt]}</button>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      {activeVideo && (
-        <>
-          {/* Info Bar */}
-          {showControls && (
-            <div className="fixed bottom-6 left-4 right-4 z-50">
-              <div className="bg-black/60 backdrop-blur-sm rounded-2xl p-3">
-                <div className="flex items-center gap-3">
-                  <img src={activeVideo.cover} alt="" className="w-12 h-16 object-cover rounded-lg flex-shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <h2 className="text-white text-sm font-semibold line-clamp-2 mb-1">{activeVideo.title}</h2>
-                    <div className="flex items-center gap-3 text-white/60 text-xs">
-                      <button onClick={() => setShowUserProfile(true)} className="flex items-center gap-1 hover:text-white/80">
-                        <User className="w-3 h-3" /> {activeVideo.author}
-                      </button>
-                      <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {activeVideo.playCount}</span>
-                      <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {activeVideo.likeCount}</span>
-                      <button onClick={() => setShowComments(true)} className="flex items-center gap-0.5 hover:text-white/80">
-                        <MessageCircle className="w-3 h-3" /> {activeVideo.danmakuCount}
-                      </button>
-                      <button onClick={() => setShowDanmaku(!showDanmaku)} className={`text-[10px] px-1.5 py-0.5 rounded ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50"} hover:bg-white/20`}>
-                        弹{showDanmaku ? "✓" : ""}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-center gap-2 flex-shrink-0">
-                    <button onClick={() => setMuted(!muted)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center">
-                      {muted ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
-                    </button>
-                    <button onClick={() => setShowComments(true)} className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex flex-col items-center justify-center">
-                      <MessageCircle className="w-3.5 h-3.5 text-white" />
-                    </button>
-                  </div>
+      {/* Right side panel: video info + comments */}
+      <div className={`fixed top-0 bottom-0 z-50 flex flex-col transition-all duration-300 ease-out ${showComments ? "right-0 w-[380px] max-w-[90vw]" : "-right-[390px] w-[380px] max-w-[90vw]"}`}>
+        {/* Panel content */}
+        <div className="flex-1 bg-black/80 backdrop-blur-xl border-l border-white/10 overflow-hidden flex flex-col">
+          {/* Collapse button */}
+          <button onClick={showComments ? closeComments : openComments}
+            className="absolute -left-8 top-1/2 -translate-y-1/2 w-7 h-16 bg-black/60 backdrop-blur-sm rounded-l-xl border border-white/10 flex items-center justify-center text-white/60 hover:text-white hover:bg-black/80"
+          >
+            {showComments ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+
+          {/* Video info section */}
+          {activeVideo && (
+            <div className="p-4 border-b border-white/10 flex-shrink-0">
+              <h2 className="text-white text-sm font-semibold leading-snug mb-2">{activeVideo.title}</h2>
+              <button onClick={() => { setShowUserProfile(true); closeComments(); }} className="flex items-center gap-2 mb-3 hover:bg-white/5 rounded-lg p-1.5 -ml-1.5 transition-all w-full text-left">
+                <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
+                  {activeVideo.authorFace ? <img src={activeVideo.authorFace} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-2 text-white/40" />}
                 </div>
+                <span className="text-white/80 text-xs font-medium hover:text-white">{activeVideo.author}</span>
+              </button>
+              <div className="flex items-center gap-4 text-white/50 text-[10px] mb-2">
+                <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" />{activeVideo.playCount}</span>
+                <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{activeVideo.likeCount}</span>
+                <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{activeVideo.danmakuCount}</span>
+                <span>{activeVideo.duration}</span>
+                <button onClick={() => setShowDanmaku(!showDanmaku)} className={`px-1.5 py-0.5 rounded text-[9px] ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"} hover:bg-white/20`}>
+                  弹{showDanmaku ? "✓" : ""}
+                </button>
               </div>
+              {activeVideo.description && (
+                <p className="text-white/40 text-[11px] leading-relaxed line-clamp-3">{activeVideo.description}</p>
+              )}
             </div>
           )}
-        </>
+
+          {/* Comments section */}
+          {activeVideo && (
+            <div className="flex-1 overflow-y-auto">
+              <CommentList aid={activeVideo.aid} />
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Open panel indicator when closed */}
+      {!showComments && activeVideo && showControls && (
+        <button onClick={openComments}
+          className="fixed right-0 top-1/2 -translate-y-1/2 z-50 w-7 h-16 bg-black/40 backdrop-blur-sm rounded-l-xl border border-white/10 flex items-center justify-center text-white/50 hover:text-white hover:bg-black/60 transition-all"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
       )}
+
+      {/* Bottom buttons */}
+      <div className={`fixed bottom-0 right-0 z-50 flex flex-col items-center gap-3 p-4 transition-opacity duration-500 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"} ${showComments ? "right-[380px]" : "right-0"} transition-all duration-300`}>
+        <button onClick={() => setMuted(!muted)} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/10 flex items-center justify-center transition-all">
+          {muted ? <VolumeX className="w-4 h-4 text-white" /> : <Volume2 className="w-4 h-4 text-white" />}
+        </button>
+        <button onClick={() => showComments ? closeComments() : openComments()} className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-white/10 flex flex-col items-center justify-center transition-all">
+          <MessageCircle className="w-4 h-4 text-white" />
+        </button>
+      </div>
 
       {/* Search Drawer */}
       {showSearch && (
         <SearchDrawer
           onClose={() => setShowSearch(false)}
-          onSelectVideo={(bvid) => {
-            setShowSearch(false);
-          }}
-          onSelectUser={(mid: number) => {
-            setShowSearch(false);
-          }}
-        />
-      )}
-
-      {/* Comments Drawer */}
-      {showComments && activeVideo && (
-        <CommentDrawer
-          aid={activeVideo.aid}
-          onClose={() => setShowComments(false)}
+          onSelectVideo={() => setShowSearch(false)}
+          onSelectUser={() => setShowSearch(false)}
         />
       )}
 
@@ -357,7 +359,6 @@ function VideoCard({ video, isActive, isNearby }: {
   if (!isNearby && !isActive) {
     return <div className="snap-start h-full w-full bg-black shrink-0" />;
   }
-
   return (
     <div className="snap-start h-full w-full relative bg-black shrink-0 flex items-center justify-center">
       {isActive ? (
@@ -390,8 +391,12 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
+  const [loadedBytes, setLoadedBytes] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const lastLoadedRef = useRef(0);
+  const lastTimeRef = useRef(Date.now());
 
   useEffect(() => {
     setResolved(null);
@@ -399,6 +404,10 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
+    setLoadSpeedKbps(0);
+    setLoadedBytes(0);
+    lastLoadedRef.current = 0;
+    lastTimeRef.current = Date.now();
 
     let cancelled = false;
     (async () => {
@@ -437,7 +446,13 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     v.load();
     v.muted = muted || resolved.format === "dash";
 
-    const onPlaying = () => setStatus("playing");
+    let speedTimer: ReturnType<typeof setInterval> | null = null;
+
+    const onPlaying = () => {
+      setStatus("playing");
+      if (speedTimer) clearInterval(speedTimer);
+      setLoadSpeedKbps(0);
+    };
     const onPause = () => setStatus("paused");
     const onError = () => {
       onRetry(index);
@@ -451,8 +466,26 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     };
     const onTime = () => { setCurrentTime(v.currentTime); setDuration(v.duration || 0); };
     const onProgress = () => {
-      if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
+      if (v.buffered.length > 0) {
+        const end = v.buffered.end(v.buffered.length - 1);
+        setBuffered(end);
+      }
     };
+
+    speedTimer = setInterval(() => {
+      if (!v.buffered.length) return;
+      const now = v.buffered.end(v.buffered.length - 1);
+      if (now > 0 && v.duration > 0 && now < v.duration * 0.99) {
+        const diff = now - lastLoadedRef.current;
+        const elapsed = (Date.now() - lastTimeRef.current) / 1000;
+        if (elapsed > 0.5 && diff > 0) {
+          setLoadSpeedKbps(Math.round((diff * 8) / elapsed / 1000));
+        }
+        lastLoadedRef.current = now;
+        lastTimeRef.current = Date.now();
+      }
+    }, 500);
+
     const onLoaded = () => { v.play().catch(() => {}); };
 
     v.addEventListener("playing", onPlaying);
@@ -469,6 +502,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("progress", onProgress);
       v.removeEventListener("loadedmetadata", onLoaded);
+      if (speedTimer) clearInterval(speedTimer);
     };
   }, [resolved?.videoUrl, muted]);
 
@@ -499,8 +533,10 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     return (
       <div className="fixed inset-0 z-40 pointer-events-none">
         <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black/20" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
+          <p className="text-white/50 text-xs">获取播放源...</p>
         </div>
       </div>
     );
@@ -520,9 +556,17 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
         <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" loop />
       )}
 
-      {/* Progress Bar */}
-      <div className="absolute bottom-28 left-2 right-2 z-50 pointer-events-auto">
-        <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all">
+      {/* Progress bar - moved down to bottom */}
+      <div className="absolute bottom-8 left-4 right-4 z-50 pointer-events-auto">
+        {/* Speed indicator during loading */}
+        {loadSpeedKbps > 0 && (
+          <div className="flex justify-center mb-1">
+            <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">
+              {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)}Mbps` : `${loadSpeedKbps}Kbps`}
+            </span>
+          </div>
+        )}
+        <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-0.5">
           <div className="absolute left-0 top-0 h-full bg-white/30 rounded-full" style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }} />
           <div className="absolute left-0 top-0 h-full bg-pink-500 rounded-full" style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }} />
           <input
@@ -531,20 +575,25 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
         </div>
-        <div className="flex justify-between text-white/50 text-[10px] mt-0.5">
+        <div className="flex justify-between text-white/40 text-[9px]">
           <span>{fmtTime(currentTime)}</span>
           <span>{fmtTime(duration)}</span>
         </div>
       </div>
 
-      {/* Loading overlay */}
+      {/* Loading overlay with speed */}
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
+          <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-black/40" />
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
             <p className="text-white/60 text-xs">缓冲中...</p>
+            {loadSpeedKbps > 0 && (
+              <p className="text-white/40 text-[10px]">
+                {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)} Mbps` : `${loadSpeedKbps} Kbps`}
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -559,6 +608,67 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
           </a>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ============ Comment List (embedded in right panel) ============ */
+
+function CommentList({ aid }: { aid: number }) {
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [source, setSource] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`/api/bili/comments?aid=${aid}`);
+        const data = await res.json();
+        setComments(data.comments || []);
+        setSource(data.source || "");
+      } catch {
+        setSource("error");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [aid]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+      </div>
+    );
+  }
+
+  if (source === "unavailable" || source === "error") {
+    return <p className="text-white/40 text-xs text-center py-12">评论数据暂不可用</p>;
+  }
+
+  if (comments.length === 0) {
+    return <p className="text-white/40 text-xs text-center py-12">暂无评论</p>;
+  }
+
+  return (
+    <div className="px-4 pb-4">
+      <h3 className="text-white/60 text-[10px] font-medium uppercase tracking-wider mb-3 sticky top-0 bg-black/80 backdrop-blur-sm py-2">热门评论 · {comments.length}条</h3>
+      {comments.map((c) => (
+        <div key={c.rpid} className="flex gap-2.5 py-2.5 border-b border-white/5">
+          <img src={c.authorFace} alt="" className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <span className="text-white/80 text-[11px] font-medium">{c.author}</span>
+              <span className="text-white/30 text-[9px]">{timeAgo(c.createdAt)}</span>
+            </div>
+            <p className="text-white/65 text-xs leading-relaxed">{c.content}</p>
+            <div className="flex items-center gap-3 mt-1">
+              <span className="text-white/25 text-[9px] flex items-center gap-0.5"><Heart className="w-2 h-2" />{c.likeCount}</span>
+              {c.replyCount > 0 && <span className="text-white/25 text-[9px]">{c.replyCount}条回复</span>}
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -592,7 +702,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-sm overflow-y-auto">
       <div className="p-4">
         <div className="flex gap-2 mb-4">
           <div className="flex-1 relative">
@@ -603,34 +713,21 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
             />
             <Search className="w-4 h-4 text-white/40 absolute right-3 top-1/2 -translate-y-1/2" />
           </div>
-          <button onClick={doSearch} className="px-4 py-2 bg-pink-500/80 text-white text-sm rounded-xl hover:bg-pink-500">
-            搜索
-          </button>
-          <button onClick={onClose} className="px-3 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20">
-            <X className="w-4 h-4" />
-          </button>
+          <button onClick={doSearch} className="px-4 py-2 bg-pink-500/80 text-white text-sm rounded-xl hover:bg-pink-500">搜索</button>
+          <button onClick={onClose} className="px-3 py-2 bg-white/10 text-white rounded-xl hover:bg-white/20"><X className="w-4 h-4" /></button>
         </div>
-
         <div className="flex gap-1 mb-4">
           <button onClick={() => { setType("video"); setResults(null); }} className={`px-3 py-1.5 rounded-full text-xs ${type === "video" ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50"}`}>搜视频</button>
           <button onClick={() => { setType("user"); setResults(null); }} className={`px-3 py-1.5 rounded-full text-xs ${type === "user" ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50"}`}>搜用户</button>
         </div>
-
-        {searching && (
-          <div className="flex items-center justify-center py-8">
-            <div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-          </div>
-        )}
-
+        {searching && <div className="flex items-center justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" /></div>}
         {results && (
           <div className="space-y-2">
             {results.source === "error" && <p className="text-white/50 text-sm text-center py-8">搜索服务暂不可用</p>}
             {results.results.length === 0 && results.source !== "error" && <p className="text-white/50 text-sm text-center py-8">未找到相关内容</p>}
-
             {results.results.map((item, i) => (
               type === "video" ? (
-                <a key={i} href={`https://www.bilibili.com/video/${item.bvid}`} target="_blank" rel="noopener noreferrer"
-                  onClick={() => onSelectVideo(item.bvid)}
+                <a key={i} href={`https://www.bilibili.com/video/${item.bvid}`} target="_blank" rel="noopener noreferrer" onClick={() => onSelectVideo(item.bvid)}
                   className="flex gap-3 p-2 rounded-xl hover:bg-white/5 transition-all"
                 >
                   <img src={item.cover} alt="" className="w-28 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
@@ -653,64 +750,6 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
               )
             ))}
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/* ============ Comment Drawer ============ */
-
-function CommentDrawer({ aid, onClose }: { aid: number; onClose: () => void }) {
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/bili/comments?aid=${aid}`);
-        const data = await res.json();
-        setComments(data.comments || []);
-        setSource(data.source || "");
-      } catch {
-        setSource("error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [aid]);
-
-  return (
-    <div className="fixed inset-x-0 bottom-0 z-50 bg-black/95 backdrop-blur-sm rounded-t-3xl max-h-[60vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-      <div className="sticky top-0 bg-black/95 backdrop-blur-sm p-4 flex items-center justify-between border-b border-white/10">
-        <h3 className="text-white text-sm font-semibold">评论区</h3>
-        <button onClick={onClose} className="text-white/50 hover:text-white"><X className="w-5 h-5" /></button>
-      </div>
-      <div className="p-4">
-        {loading ? (
-          <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" /></div>
-        ) : source === "unavailable" || source === "error" ? (
-          <p className="text-white/40 text-sm text-center py-8">评论数据暂不可用</p>
-        ) : comments.length === 0 ? (
-          <p className="text-white/40 text-sm text-center py-8">暂无评论</p>
-        ) : (
-          comments.map((c) => (
-            <div key={c.rpid} className="flex gap-3 py-3 border-b border-white/5">
-              <img src={c.authorFace} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-white/80 text-xs font-medium">{c.author}</span>
-                  <span className="text-white/30 text-[10px]">{timeAgo(c.createdAt)}</span>
-                </div>
-                <p className="text-white/70 text-sm leading-relaxed">{c.content}</p>
-                <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-white/30 text-[10px] flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" /> {c.likeCount}</span>
-                  {c.replyCount > 0 && <span className="text-white/30 text-[10px]">{c.replyCount}条回复</span>}
-                </div>
-              </div>
-            </div>
-          ))
         )}
       </div>
     </div>
@@ -741,12 +780,9 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
   }, [mid]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-sm overflow-y-auto">
       <div className="p-4">
-        <button onClick={onClose} className="mb-4 text-white/50 hover:text-white flex items-center gap-1 text-sm">
-          <X className="w-4 h-4" /> 关闭
-        </button>
-
+        <button onClick={onClose} className="mb-4 text-white/50 hover:text-white flex items-center gap-1 text-sm"><X className="w-4 h-4" /> 关闭</button>
         {loading ? (
           <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" /></div>
         ) : profile ? (
@@ -759,16 +795,13 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
                 {profile.sign && <p className="text-white/40 text-xs mt-1">{profile.sign}</p>}
               </div>
             </div>
-
             <h3 className="text-white/80 text-sm font-semibold mb-3">作品列表</h3>
             {videos.length === 0 ? (
               <p className="text-white/40 text-sm text-center py-8">暂无公开作品</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {videos.map((v) => (
-                  <a key={v.id} href={`https://www.bilibili.com/video/${v.bvid}`} target="_blank" rel="noopener noreferrer"
-                    onClick={onSelectVideo} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all"
-                  >
+                  <a key={v.id} href={`https://www.bilibili.com/video/${v.bvid}`} target="_blank" rel="noopener noreferrer" onClick={onSelectVideo} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all">
                     <img src={v.cover} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" />
                     <div className="p-2">
                       <h4 className="text-white/80 text-xs line-clamp-2 mb-1">{v.title}</h4>
