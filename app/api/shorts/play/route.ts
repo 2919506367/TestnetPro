@@ -4,13 +4,54 @@ const BILI_API = "https://api.bilibili.com";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-async function tryPlayUrl(bvid: string, cid: string, fnval: number) {
+const QN_MAP: Record<number, string> = {
+  6: "240P 极速",
+  16: "360P 流畅",
+  32: "480P 清晰",
+  64: "720P 高清",
+  80: "1080P 高清",
+  112: "1080P+",
+  116: "1080P60",
+  120: "4K",
+};
+
+const ALLOWED_QNS = [6, 16, 32, 64, 80, 112, 116, 120];
+const DEFAULT_QN = 64;
+
+function biliHeaders(referer = "https://www.bilibili.com") {
+  const headers: Record<string, string> = {
+    "User-Agent": UA,
+    Referer: referer,
+    Origin: "https://www.bilibili.com",
+  };
+  const cookie = process.env.BILI_COOKIE;
+  if (cookie) {
+    headers["Cookie"] = cookie;
+  }
+  return headers;
+}
+
+async function tryPlayUrl(bvid: string, cid: string, fnval: number, qn: number) {
   const playRes = await fetch(
-    `${BILI_API}/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=64&platform=web&fnval=${fnval}`,
-    { headers: { "User-Agent": UA, Referer: `https://www.bilibili.com/video/${bvid}` } }
+    `${BILI_API}/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=${qn}&platform=web&fnval=${fnval}&fourk=1`,
+    { headers: biliHeaders(`https://www.bilibili.com/video/${bvid}`) }
   );
   if (!playRes.ok) return null;
   return playRes.json();
+}
+
+function proxyUrl(rawUrl: string): string {
+  return `/api/bili-proxy?url=${encodeURIComponent(rawUrl)}`;
+}
+
+function parseQn(input: string | null): number {
+  if (!input) return DEFAULT_QN;
+  const n = parseInt(input, 10);
+  if (ALLOWED_QNS.includes(n)) return n;
+  const closest = ALLOWED_QNS.reduce((prev, curr) =>
+    Math.abs(curr - n) < Math.abs(prev - n) ? curr : prev
+  );
+  return closest;
 }
 
 export async function GET(request: NextRequest) {
@@ -18,50 +59,30 @@ export async function GET(request: NextRequest) {
   const bvid = url.searchParams.get("bvid");
   if (!bvid) return NextResponse.json({ error: "缺少bvid参数" }, { status: 400 });
 
+  const qn = parseQn(url.searchParams.get("qn"));
+
   try {
     const pageRes = await fetch(`${BILI_API}/x/player/pagelist?bvid=${bvid}`, {
-      headers: { "User-Agent": UA, Referer: "https://www.bilibili.com" },
+      headers: biliHeaders(),
     });
     if (!pageRes.ok) throw new Error("pagelist failed");
     const pageData = await pageRes.json();
     const cid = pageData.data?.[0]?.cid;
     if (!cid) throw new Error("no cid");
 
-    let playData = await tryPlayUrl(bvid, cid, 0);
+    let playData = await tryPlayUrl(bvid, cid, 0, qn);
     if (playData?.data?.durl?.length > 0) {
-      const durl = playData.data.durl;
-      return NextResponse.json({
-        videoUrl: durl[0].url,
-        audioUrl: null,
-        backupUrl: durl[0].backup_url?.[0] || null,
-        acceptDescription: playData.data.accept_description,
-        bvid,
-        cid,
-      });
+      return buildDurlResponse(playData, bvid, cid, qn);
     }
 
-    playData = await tryPlayUrl(bvid, cid, 1);
+    playData = await tryPlayUrl(bvid, cid, 1, qn);
     if (playData?.data?.durl?.length > 0) {
-      const durl = playData.data.durl;
-      return NextResponse.json({
-        videoUrl: durl[0].url,
-        audioUrl: null,
-        backupUrl: durl[0].backup_url?.[0] || null,
-        bvid,
-        cid,
-      });
+      return buildDurlResponse(playData, bvid, cid, qn);
     }
 
-    playData = await tryPlayUrl(bvid, cid, 16);
+    playData = await tryPlayUrl(bvid, cid, 16, qn);
     if (playData?.data?.dash?.video?.length > 0) {
-      const dash = playData.data.dash;
-      return NextResponse.json({
-        videoUrl: dash.video[0].baseUrl || dash.video[0].base_url,
-        audioUrl: dash.audio?.[0]?.baseUrl || dash.audio?.[0]?.base_url || null,
-        bvid,
-        cid,
-        dashFormat: true,
-      });
+      return buildDashResponse(playData, bvid, cid, qn);
     }
 
     return NextResponse.json({
@@ -77,4 +98,63 @@ export async function GET(request: NextRequest) {
       fallback: true,
     });
   }
+}
+
+function buildDurlResponse(playData: any, bvid: string, cid: string, qn: number) {
+  const durl = playData.data.durl;
+  const best = durl[durl.length - 1];
+  const backupRaw = best.backup_url?.[0] || null;
+  const qualities = buildQualityList(playData.data.accept_quality, playData.data.accept_description, qn);
+
+  return NextResponse.json({
+    videoUrl: best.url,
+    proxyVideoUrl: proxyUrl(best.url),
+    audioUrl: null,
+    proxyAudioUrl: null,
+    backupUrl: backupRaw,
+    proxyBackupUrl: backupRaw ? proxyUrl(backupRaw) : null,
+    format: "durl",
+    qn,
+    qnLabel: QN_MAP[qn] || `${qn}P`,
+    qualities,
+    bvid,
+    cid,
+  });
+}
+
+function buildDashResponse(playData: any, bvid: string, cid: string, qn: number) {
+  const dash = playData.data.dash;
+  const videos = dash.video as Array<Record<string, unknown>>;
+  const audios = dash.audio as Array<Record<string, unknown>> | undefined;
+  const bestVideo = videos[videos.length - 1];
+  const bestAudio = audios?.[audios.length - 1];
+  const qualities = buildQualityList(playData.data.accept_quality, playData.data.accept_description, qn);
+  const videoRaw = String(bestVideo.baseUrl || bestVideo.base_url);
+  const audioRaw = bestAudio ? String(bestAudio.baseUrl || bestAudio.base_url) : null;
+
+  return NextResponse.json({
+    videoUrl: videoRaw,
+    proxyVideoUrl: proxyUrl(videoRaw),
+    audioUrl: audioRaw,
+    proxyAudioUrl: audioRaw ? proxyUrl(audioRaw) : null,
+    backupUrl: null,
+    proxyBackupUrl: null,
+    bvid,
+    cid,
+    format: "dash",
+    dashFormat: true,
+    qn,
+    qnLabel: QN_MAP[qn] || `${qn}P`,
+    qualities,
+  });
+}
+
+function buildQualityList(acceptQuality: unknown, acceptDesc: unknown, currentQn: number) {
+  const qns = (acceptQuality as number[]) || [];
+  const descs = (acceptDesc as string[]) || [];
+  return qns.map((q, i) => ({
+    qn: q,
+    label: QN_MAP[q] || descs[i] || `${q}P`,
+    active: q === currentQn,
+  }));
 }
