@@ -53,8 +53,8 @@ function MembershipContent() {
 
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30">
-        <div className="w-10 h-10 rounded-full border-[3px] border-blue-200 border-t-blue-600 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
+        <div className="w-10 h-10 rounded-full border-[3px] border-blue-200 dark:border-gray-700 border-t-blue-600 animate-spin" />
       </div>
     );
   }
@@ -67,13 +67,13 @@ function MembershipContent() {
     : "";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-4">
       <div className="max-w-2xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => router.push("/drive")} className="p-2 rounded-xl hover:bg-white/50 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <button onClick={() => router.push("/drive")} className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </button>
-          <h1 className="text-xl font-bold text-gray-900">会员中心</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">会员中心</h1>
         </div>
 
         {/* Status Card */}
@@ -102,20 +102,20 @@ function MembershipContent() {
         </div>
 
         {/* Token Balance */}
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-5 mb-6">
+        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-5 mb-6">
           <div className="flex items-center gap-2 mb-2">
             <Coins className="w-5 h-5 text-blue-500" />
-            <h2 className="text-base font-semibold text-gray-800">AI Token 余额</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white">AI Token 余额</h2>
           </div>
-          <p className="text-2xl font-bold text-gray-900">{tokenQuota.toLocaleString()}</p>
-          <p className="text-xs text-gray-400 mt-0.5">每次 AI 对话消耗约 10-100 tokens</p>
+          <p className="text-2xl font-bold text-gray-900 dark:text-white">{tokenQuota.toLocaleString()}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">每次 AI 对话消耗约 10-100 tokens</p>
         </div>
 
         {/* VIP CDK Redeem */}
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-6 mb-4">
+        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-6 mb-4">
           <div className="flex items-center gap-2 mb-4">
             <Gift className="w-5 h-5 text-amber-500" />
-            <h2 className="text-base font-semibold text-gray-800">兑换 VIP 会员 CDK</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white">兑换 VIP 会员 CDK</h2>
           </div>
           <div className="flex gap-2">
             <input
@@ -124,28 +124,28 @@ function MembershipContent() {
               placeholder="输入 VIP 会员 CDK 兑换码"
               maxLength={50}
               onKeyDown={(e) => e.key === "Enter" && doRedeem(vipCode, setVipCode, setVipMsg, setVipMsgOk, setVipRedeeming, "vip")}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white/80 transition-all font-mono tracking-wider"
+              className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-mono tracking-wider"
             />
             <button
               onClick={() => doRedeem(vipCode, setVipCode, setVipMsg, setVipMsgOk, setVipRedeeming, "vip")}
               disabled={vipRedeeming}
-              className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-sm font-medium hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-md shadow-amber-500/20"
+              className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 text-white rounded-xl text-sm font-medium hover:from-amber-600 hover:to-orange-700 disabled:opacity-50 transition-all shadow-md dark:shadow-black/20 shadow-amber-500/20"
             >
               {vipRedeeming ? "兑换中..." : "兑换"}
             </button>
           </div>
           {vipMsg && (
-            <div className={`mt-3 text-sm px-4 py-2.5 rounded-xl border ${vipMsgOk ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}>
+            <div className={`mt-3 text-sm px-4 py-2.5 rounded-xl border ${vipMsgOk ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-100 dark:border-green-800" : "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"}`}>
               {vipMsg}
             </div>
           )}
         </div>
 
         {/* Token CDK Redeem */}
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-6 mb-6">
+        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-6 mb-6">
           <div className="flex items-center gap-2 mb-4">
             <Coins className="w-5 h-5 text-blue-500" />
-            <h2 className="text-base font-semibold text-gray-800">兑换 AI Token CDK</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white">兑换 AI Token CDK</h2>
           </div>
           <div className="flex gap-2">
             <input
@@ -154,18 +154,18 @@ function MembershipContent() {
               placeholder="输入 Token CDK 兑换码"
               maxLength={50}
               onKeyDown={(e) => e.key === "Enter" && doRedeem(tokenCode, setTokenCode, setTokenMsg, setTokenMsgOk, setTokenRedeeming, "token")}
-              className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white/80 transition-all font-mono tracking-wider"
+              className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all font-mono tracking-wider"
             />
             <button
               onClick={() => doRedeem(tokenCode, setTokenCode, setTokenMsg, setTokenMsgOk, setTokenRedeeming, "token")}
               disabled={tokenRedeeming}
-              className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20"
+              className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-xl text-sm font-medium hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-md dark:shadow-black/20 shadow-blue-500/20"
             >
               {tokenRedeeming ? "兑换中..." : "兑换"}
             </button>
           </div>
           {tokenMsg && (
-            <div className={`mt-3 text-sm px-4 py-2.5 rounded-xl border ${tokenMsgOk ? "bg-green-50 text-green-700 border-green-100" : "bg-red-50 text-red-600 border-red-100"}`}>
+            <div className={`mt-3 text-sm px-4 py-2.5 rounded-xl border ${tokenMsgOk ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-100 dark:border-green-800" : "bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 border-red-100 dark:border-red-800"}`}>
               {tokenMsg}
             </div>
           )}
@@ -173,15 +173,15 @@ function MembershipContent() {
 
         {/* Features */}
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-5">
+          <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-5">
             <Shield className="w-6 h-6 text-amber-500 mb-3" />
-            <h3 className="font-semibold text-gray-800 mb-1">10GB 超大空间</h3>
-            <p className="text-xs text-gray-500">黄金会员享有 10GB 存储，是普通用户的 2 倍</p>
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-1">10GB 超大空间</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">黄金会员享有 10GB 存储，是普通用户的 2 倍</p>
           </div>
-          <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-5">
+          <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-5">
             <Zap className="w-6 h-6 text-amber-500 mb-3" />
-            <h3 className="font-semibold text-gray-800 mb-1">流光昵称</h3>
-            <p className="text-xs text-gray-500">黄金会员昵称显示炫酷金色流光动态效果</p>
+            <h3 className="font-semibold text-gray-800 dark:text-white mb-1">流光昵称</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">黄金会员昵称显示炫酷金色流光动态效果</p>
           </div>
         </div>
       </div>

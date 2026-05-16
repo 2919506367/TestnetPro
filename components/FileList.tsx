@@ -66,11 +66,11 @@ export default function FileList({ files, onDelete, onDownload, deleting }: File
   if (files.length === 0) {
     return (
       <div className="text-center py-20 animate-fade-in">
-        <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
-          <File className="w-9 h-9 text-gray-300" />
+        <div className="w-20 h-20 mx-auto mb-5 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center">
+          <File className="w-9 h-9 text-gray-300 dark:text-gray-500" />
         </div>
-        <p className="text-gray-400 text-base font-medium">此文件夹为空</p>
-        <p className="text-gray-300 text-sm mt-1">上传文件开始使用</p>
+        <p className="text-gray-400 dark:text-gray-300 text-base font-medium">此文件夹为空</p>
+        <p className="text-gray-300 dark:text-gray-500 text-sm mt-1">上传文件开始使用</p>
       </div>
     );
   }
@@ -80,24 +80,24 @@ export default function FileList({ files, onDelete, onDownload, deleting }: File
       {files.map((file) => (
         <div
           key={file.id}
-          className="group relative bg-white/80 backdrop-blur-sm rounded-xl border border-gray-200/80 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/5 hover:border-blue-200/60"
+          className="group relative bg-white/80 dark:bg-gray-700/80 backdrop-blur-sm rounded-xl border border-gray-200/80 dark:border-gray-600/80 p-4 transition-all duration-200 hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/5 hover:border-blue-200/60 dark:hover:border-blue-500/40"
         >
           <div className="flex flex-col items-center text-center">
-            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-600 dark:to-gray-700 flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
               <FileIcon mimeType={file.mimeType} />
             </div>
 
-            <p className="w-full text-sm font-medium text-gray-800 truncate mb-1.5" title={file.originalName}>
+            <p className="w-full text-sm font-medium text-gray-800 dark:text-white truncate mb-1.5" title={file.originalName}>
               {file.originalName}
             </p>
 
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 mb-2">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 mb-2">
               {FileTypeBadge({ mimeType: file.mimeType })}
             </span>
 
-            <div className="flex items-center gap-3 text-[11px] text-gray-400 mb-3">
+            <div className="flex items-center gap-3 text-[11px] text-gray-400 dark:text-gray-500 mb-3">
               <span>{formatSize(file.size)}</span>
-              <span className="text-gray-300">·</span>
+              <span className="text-gray-300 dark:text-gray-600">·</span>
               <span>{formatDate(file.createdAt)}</span>
             </div>
 
@@ -112,7 +112,7 @@ export default function FileList({ files, onDelete, onDownload, deleting }: File
               <button
                 onClick={() => onDelete(file)}
                 disabled={deleting === file.id}
-                className="flex items-center justify-center w-9 h-8 text-xs text-red-500 bg-red-50 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-all"
+                className="flex items-center justify-center w-9 h-8 text-xs text-red-500 bg-red-50 dark:bg-red-900/30 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/50 disabled:opacity-50 transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>

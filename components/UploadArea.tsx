@@ -85,17 +85,17 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
   };
 
   return (
-    <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-blue-100/60 shadow-sm shadow-blue-500/5 p-6 animate-slide-up">
+    <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-blue-100/60 dark:border-blue-900/40 shadow-sm shadow-blue-500/5 p-6 animate-slide-up">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold text-gray-800">上传文件</h3>
-          <p className="text-xs text-gray-400 mt-0.5">拖拽或点击选择，单文件最大 {MAX_LABEL}</p>
+          <h3 className="text-base font-semibold text-gray-800 dark:text-white">上传文件</h3>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">拖拽或点击选择，单文件最大 {MAX_LABEL}</p>
         </div>
         {needsFolderSelect && folders && onFolderChange && (
           <select
             value={folderId || ""}
             onChange={(e) => onFolderChange(parseInt(e.target.value, 10))}
-            className="text-xs px-3 py-2 rounded-lg border border-gray-200 bg-white/80 text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="text-xs px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white/80 dark:bg-gray-700/80 text-gray-600 dark:text-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="">选择保存位置</option>
             {folders.map((f) => (
@@ -110,8 +110,8 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
           uploadError
             ? "border-red-200 bg-red-50/50"
             : dragOver
-            ? "border-blue-400 bg-blue-50/50 scale-[1.01]"
-            : "border-gray-200 hover:border-blue-300 hover:bg-gradient-to-br hover:from-blue-50/40 hover:to-purple-50/40"
+            ? "border-blue-400 bg-blue-50/50 dark:bg-blue-900/30 scale-[1.01]"
+            : "border-gray-200 dark:border-gray-600 hover:border-blue-300 dark:hover:border-blue-500 hover:bg-gradient-to-br hover:from-blue-50/40 hover:to-purple-50/40 dark:hover:from-blue-900/20 dark:hover:to-purple-900/20"
         }`}
         onClick={() => !uploading && fileInputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -120,21 +120,21 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
       >
         {uploading ? (
           <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin" />
+            <div className="w-12 h-12 rounded-full border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 animate-spin" />
             <div>
-              <p className="text-sm font-medium text-gray-700">正在上传</p>
-              <p className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">{uploadFileName}</p>
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">正在上传</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-[200px]">{uploadFileName}</p>
             </div>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-              dragOver ? "bg-blue-500 text-white scale-110" : "bg-gradient-to-br from-blue-50 to-purple-50 text-blue-500"
+              dragOver ? "bg-blue-500 text-white scale-110" : "bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-900/40 dark:to-purple-900/40 text-blue-500 dark:text-blue-400"
             }`}>
               <Upload className={`w-7 h-7 ${dragOver ? "" : ""}`} />
             </div>
             <div>
-              <p className="text-sm font-medium text-gray-600">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">
                 {dragOver ? "松开以上传文件" : "拖拽文件到此处，或点击选择文件"}
               </p>
               <p className="text-xs text-gray-400 mt-1">支持任意格式文件，单个最大 {MAX_LABEL}</p>
@@ -146,7 +146,7 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
       </div>
 
       {uploadError && (
-        <div className="mt-3 flex items-center gap-2 bg-red-50 text-red-600 text-sm px-4 py-2.5 rounded-xl border border-red-100">
+        <div className="mt-3 flex items-center gap-2 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 text-sm px-4 py-2.5 rounded-xl border border-red-100 dark:border-red-800/50">
           <X className="w-4 h-4 flex-shrink-0" />
           {uploadError}
         </div>

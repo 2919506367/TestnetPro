@@ -44,35 +44,35 @@ function EmoticonsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900 p-4">
       <div className="max-w-4xl mx-auto">
         <div className="flex items-center gap-3 mb-6">
-          <button onClick={() => router.push("/drive")} className="p-2 rounded-xl hover:bg-white/50 transition-colors">
-            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          <button onClick={() => router.push("/drive")} className="p-2 rounded-xl hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors">
+            <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </button>
           <Smile className="w-5 h-5 text-amber-500" />
-          <h1 className="text-xl font-bold text-gray-900">表情管理</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">表情管理</h1>
         </div>
 
         {/* Upload */}
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-6 mb-6 animate-slide-up">
+        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-6 mb-6 animate-slide-up">
           <div className="flex items-center gap-2 mb-4">
             <Upload className="w-5 h-5 text-blue-500" />
-            <h2 className="text-base font-semibold text-gray-800">上传新表情</h2>
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white">上传新表情</h2>
           </div>
 
           <div className="flex items-end gap-3 flex-wrap">
             <div>
-              <label className="block text-xs text-gray-500 mb-1">表情标签</label>
+              <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">表情标签</label>
               <input
                 type="text" value={label} onChange={(e) => setLabel(e.target.value)} maxLength={20}
-                placeholder="给表情起个名字" className="w-40 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white/80 transition-all"
+                placeholder="给表情起个名字" className="w-40 px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
               />
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-md shadow-blue-500/20"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 transition-all shadow-md dark:shadow-black/20 shadow-blue-500/20"
             >
               {uploading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Plus className="w-4 h-4" />}
               {uploading ? "上传中..." : "选择图片"}
@@ -83,20 +83,20 @@ function EmoticonsContent() {
               className="hidden"
             />
           </div>
-          {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+          {error && <p className="text-xs text-red-500 dark:text-red-400 mt-2">{error}</p>}
         </div>
 
         {/* List */}
-        <div className="bg-white/70 backdrop-blur-md rounded-2xl border border-gray-200/60 shadow-sm p-6 animate-slide-up">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">我的表情 ({items.length})</h2>
+        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-md rounded-2xl border border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 p-6 animate-slide-up">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white mb-4">我的表情 ({items.length})</h2>
           {items.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">还没有表情，上传你的第一个表情吧</div>
+            <div className="text-center py-12 text-gray-400 dark:text-gray-500">还没有表情，上传你的第一个表情吧</div>
           ) : (
             <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-8 gap-3">
               {items.map((item) => (
-                <div key={item.id} className="flex flex-col items-center p-2 rounded-xl hover:bg-gray-50 transition-colors text-center">
+                <div key={item.id} className="flex flex-col items-center p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-center">
                   <img src={item.imageUrl} alt={item.label} className="w-16 h-16 object-contain rounded-xl" />
-                  <span className="text-[10px] text-gray-500 mt-1 truncate w-full">{item.label}</span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-1 truncate w-full">{item.label}</span>
                 </div>
               ))}
             </div>

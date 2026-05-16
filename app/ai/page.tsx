@@ -173,53 +173,53 @@ function AIContent() {
   const suggestions = ["解释什么是机器学习", "写一首关于春天的诗", "帮我规划一周健身计划", "推荐几本值得读的书"];
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30">
-      <aside className="w-64 bg-white/60 backdrop-blur-xl border-r border-gray-200/60 shadow-sm flex flex-col flex-shrink-0">
-        <div className="p-4 flex items-center justify-between border-b border-gray-100/80">
+    <div className="min-h-screen flex bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
+      <aside className="w-64 bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border-r border-gray-200/60 dark:border-gray-700/60 shadow-sm dark:shadow-black/20 flex flex-col flex-shrink-0">
+        <div className="p-4 flex items-center justify-between border-b border-gray-100/80 dark:border-gray-700/80">
           <div className="flex items-center gap-2">
-            <button onClick={() => router.push("/drive")} className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"><ArrowLeft className="w-5 h-5 text-gray-600"/></button>
-            <Bot className="w-5 h-5 text-purple-500"/><h1 className="text-base font-bold text-gray-800">AI 助手</h1>
+            <button onClick={() => router.push("/drive")} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-300"/></button>
+            <Bot className="w-5 h-5 text-purple-500"/><h1 className="text-base font-bold text-gray-800 dark:text-white">AI 助手</h1>
           </div>
-          <button onClick={handleNewConv} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-purple-600 transition-colors"><Plus className="w-5 h-5"/></button>
+          <button onClick={handleNewConv} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"><Plus className="w-5 h-5"/></button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {convs.map((c) => (
-            <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all cursor-pointer ${activeConvId===c.id?"bg-purple-50 shadow-sm":"hover:bg-gray-50"}`}>
+            <div key={c.id} className={`group flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all cursor-pointer ${activeConvId===c.id?"bg-purple-50 dark:bg-purple-900/20 shadow-sm":"hover:bg-gray-50 dark:hover:bg-gray-700"}`}>
               {editTitleId===c.id ? (
-                <input value={editTitle} onChange={(e)=>setEditTitle(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&handleRename(c.id)} onBlur={()=>handleRename(c.id)} autoFocus className="flex-1 px-2 py-1 text-sm border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20"/>
+                <input value={editTitle} onChange={(e)=>setEditTitle(e.target.value)} onKeyDown={(e)=>e.key==="Enter"&&handleRename(c.id)} onBlur={()=>handleRename(c.id)} autoFocus className="flex-1 px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"/>
               ) : (
                 <>
-                  <span className="flex-1 text-gray-700 truncate" onClick={()=>setActiveConvId(c.id)}>{c.title}</span>
-                  <button onClick={()=>{setEditTitleId(c.id);setEditTitle(c.title);}} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-purple-600 transition-all"><Pencil className="w-3 h-3"/></button>
-                  <button onClick={()=>handleDeleteConv(c.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 hover:text-red-500 transition-all"><Trash2 className="w-3 h-3"/></button>
+                  <span className="flex-1 text-gray-700 dark:text-gray-200 truncate" onClick={()=>setActiveConvId(c.id)}>{c.title}</span>
+                  <button onClick={()=>{setEditTitleId(c.id);setEditTitle(c.title);}} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 dark:text-gray-500 hover:text-purple-600 dark:hover:text-purple-400 transition-all"><Pencil className="w-3 h-3"/></button>
+                  <button onClick={()=>handleDeleteConv(c.id)} className="opacity-0 group-hover:opacity-100 p-1 rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 transition-all"><Trash2 className="w-3 h-3"/></button>
                 </>
               )}
             </div>
           ))}
-          {convs.length===0&&<p className="text-center text-xs text-gray-400 py-8">暂无对话</p>}
+          {convs.length===0&&<p className="text-center text-xs text-gray-400 dark:text-gray-500 py-8">暂无对话</p>}
         </div>
 
-        <div className="border-t border-gray-100/80 p-2">
+        <div className="border-t border-gray-100/80 dark:border-gray-700/80 p-2">
           <button
             onClick={() => setShowMemories(!showMemories)}
-            className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${showMemories ? "bg-purple-50 text-purple-700" : "text-gray-600 hover:bg-gray-50"}`}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm transition-all ${showMemories ? "bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-400" : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"}`}
           >
             <Brain className="w-4 h-4" />
             <span className="flex-1 text-left">长期记忆</span>
-            <span className="text-xs text-gray-400">{memories.length}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{memories.length}</span>
           </button>
 
           {showMemories && (
             <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
               {memories.map((m) => (
-                <div key={m.id} className="group flex items-start gap-2 px-2.5 py-2 rounded-lg bg-gray-50/80 text-xs text-gray-600">
+                <div key={m.id} className="group flex items-start gap-2 px-2.5 py-2 rounded-lg bg-gray-50/80 dark:bg-gray-700/80 text-xs text-gray-600 dark:text-gray-300">
                   <span className="flex-1 leading-relaxed break-all">{m.content}</span>
-                  <button onClick={() => handleDeleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 hover:text-red-500 flex-shrink-0 transition-all"><X className="w-3 h-3" /></button>
+                  <button onClick={() => handleDeleteMemory(m.id)} className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 flex-shrink-0 transition-all"><X className="w-3 h-3" /></button>
                 </div>
               ))}
               {memories.length === 0 && (
-                <p className="text-[10px] text-gray-400 px-2.5 py-1">暂无长期记忆。在聊天中输入"记住：xxx"即可添加。</p>
+                <p className="text-[10px] text-gray-400 dark:text-gray-500 px-2.5 py-1">暂无长期记忆。在聊天中输入"记住：xxx"即可添加。</p>
               )}
               <div className="flex gap-1.5 pt-1">
                 <input
@@ -227,9 +227,9 @@ function AIContent() {
                   onChange={(e) => setMemoryInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddMemory(); }}
                   placeholder="手动添加记忆..."
-                  className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 bg-white/80"
+                  className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 dark:border-gray-600 rounded-lg outline-none focus:ring-2 focus:ring-purple-500/20 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
-                <button onClick={handleAddMemory} disabled={!memoryInput.trim()} className="px-2 py-1 text-xs rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 disabled:opacity-40 transition-all">添加</button>
+                <button onClick={handleAddMemory} disabled={!memoryInput.trim()} className="px-2 py-1 text-xs rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 hover:bg-purple-200 dark:hover:bg-purple-900/50 disabled:opacity-40 transition-all">添加</button>
               </div>
             </div>
           )}
@@ -246,21 +246,21 @@ function AIContent() {
                     {selectedProvider.avatar ? (
                       <img src={selectedProvider.avatar} className="w-full h-full object-cover" alt="" />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-blue-100 to-cyan-100 flex items-center justify-center">
-                        <WhaleIcon className="w-9 h-9 text-blue-500" />
+                      <div className="w-full h-full bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/20 dark:to-cyan-900/20 flex items-center justify-center">
+                        <WhaleIcon className="w-9 h-9 text-blue-500 dark:text-blue-400" />
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 flex items-center justify-center">
-                    <Bot className="w-9 h-9 text-purple-500"/>
+                  <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 flex items-center justify-center">
+                    <Bot className="w-9 h-9 text-purple-500 dark:text-purple-400"/>
                   </div>
                 )}
-                <h2 className="text-lg font-bold text-gray-800 mb-2">{selectedProvider ? selectedProvider.name : "AI 助手"}</h2>
-                <p className="text-sm text-gray-500 mb-6">我可以帮你回答问题、写作、翻译、代码等。试试下面的建议：</p>
+                <h2 className="text-lg font-bold text-gray-800 dark:text-white mb-2">{selectedProvider ? selectedProvider.name : "AI 助手"}</h2>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">我可以帮你回答问题、写作、翻译、代码等。试试下面的建议：</p>
                 <div className="flex flex-wrap justify-center gap-2">
                   {suggestions.map((s)=>(
-                    <button key={s} onClick={()=>{setInput(s);inputRef.current?.focus();}} className="px-3 py-1.5 text-xs bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-100 transition-colors">{s}</button>
+                    <button key={s} onClick={()=>{setInput(s);inputRef.current?.focus();}} className="px-3 py-1.5 text-xs bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-xl hover:bg-purple-100 dark:hover:bg-purple-900/40 transition-colors">{s}</button>
                   ))}
                 </div>
               </div>
@@ -278,17 +278,17 @@ function AIContent() {
                     <div className={`rounded-2xl px-4 py-3 ${
                       m.role==="user"
                         ? "bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-br-md"
-                        : "bg-white/80 backdrop-blur-sm border border-gray-200/60 text-gray-800 rounded-bl-md shadow-sm"
+                        : "bg-white dark:bg-gray-800 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700 text-gray-800 dark:text-white rounded-bl-md shadow-sm dark:shadow-black/20"
                     }`}>
                       {m.thinking ? (
-                        <div className="flex items-center gap-2 text-gray-500">
+                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                           <div className="flex gap-1">
-                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{animationDelay:"0s"}}/>
-                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{animationDelay:"0.15s"}}/>
-                            <span className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" style={{animationDelay:"0.3s"}}/>
+                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0s"}}/>
+                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.15s"}}/>
+                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.3s"}}/>
                           </div>
                           <span className="text-xs">AI 正在思考</span>
-                          {webSearch && <span className="text-[10px] text-green-600 flex items-center gap-0.5"><Search className="w-3 h-3"/> 搜索中</span>}
+                          {webSearch && <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"><Search className="w-3 h-3"/> 搜索中</span>}
                         </div>
                       ) : (
                         <p className="text-sm whitespace-pre-wrap streaming-text">
@@ -300,7 +300,7 @@ function AIContent() {
                       )}
                     </div>
                     {m.role==="assistant" && !m.thinking && messageTokens[i] && (
-                      <span className="text-[10px] text-gray-400 mt-0.5 ml-1">≈{messageTokens[i].toLocaleString()} tokens</span>
+                      <span className="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5 ml-1">≈{messageTokens[i].toLocaleString()} tokens</span>
                     )}
                   </div>
                 </div>
@@ -311,7 +311,7 @@ function AIContent() {
         </div>
 
         {/* Input area: controls above, textarea below */}
-        <div className="border-t border-gray-200/60 bg-white/60 backdrop-blur-md p-4">
+        <div className="border-t border-gray-200/60 dark:border-gray-700 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md p-4">
           <div className="max-w-3xl mx-auto">
             {/* Controls row */}
             <div className="flex items-center gap-2 mb-2.5 flex-wrap">
@@ -320,7 +320,7 @@ function AIContent() {
                   <select
                     value={selectedProviderId || ""}
                     onChange={(e) => setSelectedProviderId(e.target.value ? parseInt(e.target.value, 10) : null)}
-                    className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white/80 text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 cursor-pointer"
                   >
                     <option value="">默认模型</option>
                     {providers.map((p) => (
@@ -336,14 +336,14 @@ function AIContent() {
               <button
                 onClick={() => setWebSearch(!webSearch)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  webSearch ? "bg-green-50 text-green-700 border border-green-200 shadow-sm" : "bg-gray-50 text-gray-500 border border-gray-200 hover:bg-gray-100"
+                  webSearch ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 shadow-sm" : "bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-600"
                 }`}
               >
-                <Globe className={`w-3.5 h-3.5 ${webSearch ? "text-green-600" : "text-gray-400"}`} />
+                <Globe className={`w-3.5 h-3.5 ${webSearch ? "text-green-600 dark:text-green-400" : "text-gray-400 dark:text-gray-500"}`} />
                 {webSearch ? "联网搜索" : "联网搜索"}
               </button>
 
-              <span className="text-[10px] text-gray-400 ml-auto">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500 ml-auto">
                 剩余 {tokenBalance.toLocaleString()} tokens
               </span>
             </div>
@@ -356,11 +356,11 @@ function AIContent() {
                 onKeyDown={(e)=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();handleSend();}}}
                 placeholder={providers.length===0?"请管理员先配置AI模型" : "输入你的问题..."}
                 rows={1}
-                className="flex-1 px-4 py-2.5 border border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 bg-white/80 transition-all"
+                className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-400 bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all"
               />
               <button
                 onClick={handleSend} disabled={loading||!input.trim()}
-                className="p-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-md shadow-purple-500/20 hover:from-purple-600 hover:to-pink-700 disabled:opacity-40 transition-all"
+                className="p-2.5 rounded-xl bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-md dark:shadow-black/20 shadow-purple-500/20 hover:from-purple-600 hover:to-pink-700 disabled:opacity-40 transition-all"
               >{loading?<Loader2 className="w-5 h-5 animate-spin"/>:<Send className="w-5 h-5"/>}</button>
             </div>
           </div>
@@ -371,5 +371,5 @@ function AIContent() {
 }
 
 export default function AIPage() {
-  return <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 rounded-full border-3 border-blue-200 border-t-blue-600 animate-spin"/></div>}><AIContent/></Suspense>;
+  return <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-white dark:bg-gray-900"><div className="w-8 h-8 rounded-full border-3 border-blue-200 dark:border-gray-700 border-t-blue-600 animate-spin"/></div>}><AIContent/></Suspense>;
 }
