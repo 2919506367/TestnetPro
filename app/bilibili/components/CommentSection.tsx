@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Heart, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { proxyUrl } from "@/lib/bilibili";
 
 interface CommentItem {
   rpid: number; content: string; author: string;
@@ -144,7 +145,7 @@ export default function CommentSection({
       {comments.map((c) => (
         <div key={c.rpid} className={`flex gap-2.5 py-3 border-b ${borderColor}`}>
           <img
-            src={c.authorFace}
+            src={proxyUrl(c.authorFace)}
             alt=""
             className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
             loading="lazy"
@@ -181,7 +182,7 @@ export default function CommentSection({
                 {replyData[c.rpid].map((r) => (
                   <div key={r.rpid} className="flex gap-2">
                     <img
-                      src={r.authorFace}
+                      src={proxyUrl(r.authorFace)}
                       alt=""
                       className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
                       loading="lazy"

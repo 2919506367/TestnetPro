@@ -6,6 +6,7 @@ import {
   Eye, Heart, MessageCircle, AlertCircle, ChevronRight, ChevronLeft,
   User, Shield, ShieldOff,
 } from "lucide-react";
+import { proxyUrl } from "@/lib/bilibili";
 import DanmakuLayer from "./DanmakuLayer";
 import CommentSection from "./CommentSection";
 
@@ -52,6 +53,7 @@ export default function VideoPlayerModal({
   const [qn, setQn] = useState(DEFAULT_QN);
   const [showDanmaku, setShowDanmaku] = useState(true);
   const [showComments, setShowComments] = useState(true);
+  const [retryCount, setRetryCount] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
@@ -66,6 +68,7 @@ export default function VideoPlayerModal({
     setDuration(0);
     setBuffered(0);
     setLoadSpeedKbps(0);
+    setRetryCount(0);
 
     let cancelled = false;
     (async () => {
@@ -76,7 +79,7 @@ export default function VideoPlayerModal({
         if (data.videoUrl) {
           const useProxy = forceProxy && data.proxyVideoUrl;
           setResolved({
-            videoUrl: useProxy || !data.proxyVideoUrl ? data.videoUrl : data.proxyVideoUrl,
+            videoUrl: useProxy ? data.proxyVideoUrl : data.videoUrl,
             audioUrl: useProxy && data.proxyAudioUrl ? data.proxyAudioUrl : (data.audioUrl || null),
             proxyVideoUrl: data.proxyVideoUrl || null,
             proxyAudioUrl: data.proxyAudioUrl || null,
@@ -88,6 +91,7 @@ export default function VideoPlayerModal({
             qnLabel: data.qnLabel || QN_MAP[qn] || `${qn}P`,
             qualities: data.qualities || [],
           });
+        } else if (data.fallback) {
         } else {
           setStatus("error");
         }
@@ -96,7 +100,7 @@ export default function VideoPlayerModal({
       }
     })();
     return () => { cancelled = true; };
-  }, [video?.bvid, qn, forceProxy]);
+  }, [video?.bvid, qn, forceProxy, retryCount]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -201,10 +205,10 @@ export default function VideoPlayerModal({
 
       {/* Main player area */}
       <div className={`flex-1 relative ${showComments ? "mr-[380px]" : ""} transition-all duration-300`}>
-        <div className="absolute inset-0 flex items-center justify-center">
+        <div className="absolute inset-0 bg-black flex items-center justify-center">
           {!resolved || status === "loading" ? (
             <div className="flex flex-col items-center gap-3">
-              <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+              <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
               <div className="absolute inset-0 bg-black/40" />
               <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin relative" />
               <p className="text-white/50 text-xs relative">获取播放源...</p>
@@ -213,10 +217,24 @@ export default function VideoPlayerModal({
             <div className="flex flex-col items-center gap-3 z-10">
               <AlertCircle className="w-10 h-10 text-white/60" />
               <p className="text-white/60 text-xs">播放失败</p>
-              <a href={`https://www.bilibili.com/video/${video.bvid}`} target="_blank" rel="noopener noreferrer"
-                className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-2">
-                <ExternalLink className="w-3.5 h-3.5" /> 在B站观看
-              </a>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => { setRetryCount((c) => c + 1); setStatus("loading"); }}
+                  className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-2"
+                >
+                  重试
+                </button>
+                <button
+                  onClick={() => { setForceProxy(true); setStatus("loading"); }}
+                  className="px-4 py-2 rounded-xl bg-green-500/20 text-green-300 text-xs hover:bg-green-500/30 flex items-center gap-2"
+                >
+                  <Shield className="w-3 h-3" /> 代理重试
+                </button>
+                <a href={`https://www.bilibili.com/video/${video.bvid}`} target="_blank" rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-2">
+                  <ExternalLink className="w-3.5 h-3.5" /> 在B站观看
+                </a>
+              </div>
               <div className="flex gap-1 mt-2">
                 {QN_OPTIONS.map((opt) => (
                   <button key={opt} onClick={() => { setQn(opt); setStatus("loading"); }}
@@ -230,8 +248,8 @@ export default function VideoPlayerModal({
               <video
                 ref={videoRef}
                 crossOrigin="anonymous"
-                className="absolute inset-0 w-full h-full object-contain bg-black cursor-pointer"
-                playsInline preload="auto" poster={video.cover}
+                className="absolute inset-0 w-full h-full object-contain cursor-pointer"
+                playsInline preload="auto" poster={proxyUrl(video.cover)}
                 onClick={togglePlay}
                 onTimeUpdate={resolved.format === "dash" ? syncAudio : undefined}
               />
@@ -239,7 +257,6 @@ export default function VideoPlayerModal({
                 <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" />
               )}
 
-              {/* Danmaku */}
               {showDanmaku && (
                 <DanmakuLayer
                   cid={video.cid}
@@ -250,7 +267,6 @@ export default function VideoPlayerModal({
                 />
               )}
 
-              {/* Center play/pause overlay */}
               {status === "paused" && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                   <Play className="w-14 h-14 text-white/70 drop-shadow-lg" />
@@ -261,14 +277,13 @@ export default function VideoPlayerModal({
               <div className="absolute top-0 left-0 right-0 z-40 p-4 bg-gradient-to-b from-black/50 to-transparent">
                 <h2 className="text-white text-sm font-medium line-clamp-1 ml-10">{video.title}</h2>
                 <div className="flex items-center gap-2 mt-1.5 ml-10">
-                  <img src={video.authorFace} alt="" className="w-5 h-5 rounded-full" />
+                  <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
                   <span className="text-white/70 text-xs">{video.author}</span>
                 </div>
               </div>
 
               {/* Bottom controls */}
               <div className="absolute bottom-0 left-0 right-0 z-40 p-4 bg-gradient-to-t from-black/60 to-transparent">
-                {/* Speed indicator */}
                 {loadSpeedKbps > 0 && (
                   <div className="flex justify-end mb-1">
                     <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">
@@ -276,7 +291,6 @@ export default function VideoPlayerModal({
                     </span>
                   </div>
                 )}
-                {/* Progress bar */}
                 <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-1.5">
                   <div className="absolute left-0 top-0 h-full bg-white/30 rounded-full" style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }} />
                   <div className="absolute left-0 top-0 h-full bg-pink-500 rounded-full" style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }} />
@@ -290,10 +304,16 @@ export default function VideoPlayerModal({
                     <button onClick={() => setMuted(!muted)} className="p-1 rounded hover:bg-white/10">
                       {muted ? <VolumeX className="w-4 h-4 text-white/60" /> : <Volume2 className="w-4 h-4 text-white/60" />}
                     </button>
-                    <button onClick={() => setShowDanmaku(!showDanmaku)} className={`px-1.5 py-0.5 rounded text-[9px] ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}>
+                    <button onClick={() => setShowDanmaku(!showDanmaku)} className={`px-2 py-1 rounded text-[10px] ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}>
                       弹{showDanmaku ? "✓" : ""}
                     </button>
-                    <button onClick={() => setForceProxy(!forceProxy)} className={`px-1.5 py-0.5 rounded text-[9px] ${forceProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/40"}`}>
+                    <button
+                      onClick={() => setForceProxy(!forceProxy)}
+                      className={`px-2 py-1 rounded text-[10px] flex items-center gap-1 ${
+                        forceProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/60"
+                      }`}
+                    >
+                      {forceProxy ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
                       {forceProxy ? "代理" : "直连"}
                     </button>
                     {QN_OPTIONS.map((opt) => (
@@ -327,10 +347,9 @@ export default function VideoPlayerModal({
       >
         {showComments && (
           <div className="p-4">
-            {/* Video info */}
             <h3 className={`text-sm font-semibold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>{video.title}</h3>
             <div className="flex items-center gap-3 mb-3">
-              <img src={video.authorFace} alt="" className="w-8 h-8 rounded-full bg-gray-300" />
+              <img src={proxyUrl(video.authorFace)} alt="" className="w-8 h-8 rounded-full bg-gray-300" />
               <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-gray-700"}`}>{video.author}</span>
             </div>
             <div className={`flex items-center gap-3 text-[10px] mb-4 ${dark ? "text-white/40" : "text-gray-500"}`}>
@@ -338,7 +357,6 @@ export default function VideoPlayerModal({
               <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />--</span>
               <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />--</span>
             </div>
-            {/* Comments */}
             <CommentSection aid={video.aid} dark={dark} />
           </div>
         )}
