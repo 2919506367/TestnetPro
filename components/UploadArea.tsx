@@ -3,6 +3,12 @@
 import React, { useRef, useState, ChangeEvent } from "react";
 import { Upload, X } from "lucide-react";
 
+function formatSpeed(bytesPerSec: number): string {
+  if (bytesPerSec >= 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(1) + " MB/s";
+  if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + " KB/s";
+  return bytesPerSec.toFixed(0) + " B/s";
+}
+
 interface Folder {
   id: number;
   name: string;
@@ -23,6 +29,8 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const [uploadFileName, setUploadFileName] = useState("");
+  const [progress, setProgress] = useState(0);
+  const [uploadSpeed, setUploadSpeed] = useState("");
   const [dragOver, setDragOver] = useState(false);
 
   const MAX_FILE_SIZE = maxFileSize || 5 * 1024 * 1024 * 1024;
@@ -38,36 +46,87 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
     setUploadFileName(file.name);
     setUploading(true);
     setUploadError("");
+    setProgress(0);
+    setUploadSpeed("");
 
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      if (folderId) {
-        formData.append("folderId", String(folderId));
-      }
+    const formData = new FormData();
+    formData.append("file", file);
+    if (folderId) {
+      formData.append("folderId", String(folderId));
+    }
 
-      const res = await fetch("/api/drive/upload", {
-        method: "POST",
-        body: formData,
+    return new Promise<void>((resolve) => {
+      const xhr = new XMLHttpRequest();
+      let lastLoaded = 0;
+      let lastTime = Date.now();
+      const speedSamples: number[] = [];
+
+      xhr.upload.addEventListener("progress", (e) => {
+        if (e.lengthComputable) {
+          const pct = Math.round((e.loaded / e.total) * 100);
+          setProgress(pct);
+
+          const now = Date.now();
+          const elapsed = now - lastTime;
+          if (elapsed > 300) {
+            const bytesDelta = e.loaded - lastLoaded;
+            const speed = bytesDelta / (elapsed / 1000);
+            speedSamples.push(speed);
+            if (speedSamples.length > 3) speedSamples.shift();
+            const avgSpeed = speedSamples.reduce((a, b) => a + b, 0) / speedSamples.length;
+            setUploadSpeed(formatSpeed(avgSpeed));
+            lastLoaded = e.loaded;
+            lastTime = now;
+          }
+        }
       });
 
-      const data = await res.json();
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            if (data.error) {
+              setUploadError(data.error);
+            } else {
+              onUploadSuccess();
+            }
+          } catch {
+            onUploadSuccess();
+          }
+        } else {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            setUploadError(data.error || "上传失败");
+          } catch {
+            setUploadError("上传失败 (HTTP " + xhr.status + ")");
+          }
+        }
+        cleanup(resolve);
+      });
 
-      if (!res.ok) {
-        setUploadError(data.error || "上传失败");
-        return;
-      }
+      xhr.addEventListener("error", () => {
+        setUploadError("网络错误，上传失败");
+        cleanup(resolve);
+      });
 
-      onUploadSuccess();
-    } catch {
-      setUploadError("网络错误，上传失败");
-    } finally {
-      setUploading(false);
-      setUploadFileName("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+      xhr.addEventListener("abort", () => {
+        cleanup(resolve);
+      });
+
+      xhr.open("POST", "/api/drive/upload");
+      xhr.send(formData);
+    });
+  };
+
+  const cleanup = (resolve: () => void) => {
+    setUploading(false);
+    setUploadFileName("");
+    setProgress(0);
+    setUploadSpeed("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
     }
+    resolve();
   };
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -119,11 +178,23 @@ export default function UploadArea({ onUploadSuccess, folderId, folders, onFolde
         onDrop={handleDrop}
       >
         {uploading ? (
-          <div className="flex flex-col items-center gap-3">
-            <div className="w-12 h-12 rounded-full border-4 border-blue-200 dark:border-blue-800 border-t-blue-600 animate-spin" />
-            <div>
-              <p className="text-sm font-medium text-gray-700 dark:text-gray-300">正在上传</p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate max-w-[200px]">{uploadFileName}</p>
+          <div className="flex flex-col items-center gap-3 w-full px-4">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{progress === 100 ? "上传完成，处理中..." : "正在上传"}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500 truncate max-w-[250px]">{uploadFileName}</p>
+            <div className="w-full max-w-xs h-2.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-200"
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <span className="font-medium text-gray-600 dark:text-gray-300">{progress}%</span>
+              {uploadSpeed && (
+                <>
+                  <span className="text-gray-300 dark:text-gray-600">·</span>
+                  <span className="text-blue-500 dark:text-blue-400">{uploadSpeed}</span>
+                </>
+              )}
             </div>
           </div>
         ) : (
