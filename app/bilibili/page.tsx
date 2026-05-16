@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  Play, RefreshCw, Search, X, Loader2,
-  Eye, Heart, ArrowLeft,
+  Play, Search, X, Loader2,
+  Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff,
 } from "lucide-react";
 import { proxyUrl } from "@/lib/bilibili";
 import VideoGrid from "./components/VideoGrid";
@@ -41,6 +42,7 @@ export default function BilibiliPage() {
 }
 
 function BilibiliApp() {
+  const router = useRouter();
   const { theme } = useTheme();
   const dark = theme === "dark";
 
@@ -54,10 +56,9 @@ function BilibiliApp() {
   const [searchPage, setSearchPage] = useState(1);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [forceProxy, setForceProxy] = useState(false);
+  const [globalProxy, setGlobalProxy] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const doSearch = useCallback(async (q: string, t: string, p: number, append: boolean) => {
     if (!q.trim()) return;
@@ -94,7 +95,6 @@ function BilibiliApp() {
     if (e.key === "Enter") {
       const q = searchQuery.trim();
       if (q) {
-        if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
         setShowSearch(true);
         setSearchPage(1);
         doSearch(q, searchType, 1, false);
@@ -130,13 +130,12 @@ function BilibiliApp() {
   const textPrimary = dark ? "text-white" : "text-gray-900";
   const textSecondary = dark ? "text-white/50" : "text-gray-500";
   const borderColor = dark ? "border-white/10" : "border-gray-200";
-  const cardBg = dark ? "bg-[#1f1f1f] hover:bg-[#2a2a2a]" : "bg-white hover:bg-gray-50";
   const tabActive = dark ? "bg-pink-500/20 text-pink-400" : "bg-pink-50 text-pink-600";
   const tabInactive = dark ? "text-white/50 hover:bg-white/5" : "text-gray-500 hover:bg-gray-50";
 
   return (
     <div className={`min-h-screen ${bg}`}>
-      {/* Search bar - B站 style */}
+      {/* Top bar: search + shortcuts */}
       <div className={`${searchBg} border-b ${borderColor} px-4 py-3`}>
         <div className="max-w-3xl mx-auto">
           {showSearch && (
@@ -166,7 +165,7 @@ function BilibiliApp() {
               {searchQuery && (
                 <button
                   onClick={() => { setSearchQuery(""); setShowSearch(false); setSearchResults([]); }}
-                  className={`absolute right-12 top-1/2 -translate-y-1/2 ${textSecondary} hover:text-pink-400`}
+                  className={`absolute right-20 sm:right-24 top-1/2 -translate-y-1/2 ${textSecondary} hover:text-pink-400`}
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -176,17 +175,38 @@ function BilibiliApp() {
                   const q = searchQuery.trim();
                   if (q) { setShowSearch(true); setSearchPage(1); doSearch(q, searchType, 1, false); }
                 }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 bg-pink-500 hover:bg-pink-600 text-white text-xs px-3 py-1 rounded-lg"
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-pink-500 hover:bg-pink-600 text-white text-xs px-3 py-1 rounded-lg"
               >
                 搜索
               </button>
             </div>
+            {/* 代理/直连 全局切换 */}
+            <button
+              onClick={() => setGlobalProxy(!globalProxy)}
+              className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
+                globalProxy
+                  ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                  : dark ? "bg-white/5 text-white/50 border border-white/10" : "bg-gray-100 text-gray-500 border border-gray-200"
+              }`}
+            >
+              {globalProxy ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
+              {globalProxy ? "代理" : "直连"}
+            </button>
+            {/* 短视频入口 */}
+            <button
+              onClick={() => router.push("/shorts")}
+              className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
+                dark ? "bg-white/5 hover:bg-white/10 text-white/60 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              短视频
+            </button>
           </div>
         </div>
       </div>
 
       {showSearch ? (
-        /* Search results page */
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex gap-2 mb-4">
             <button
@@ -214,33 +234,22 @@ function BilibiliApp() {
               {searchResults.map((item: any, i: number) => (
                 <button
                   key={i}
-                  onClick={() => {
-                    handlePlayFromSearch({
-                      bvid: item.bvid, aid: item.aid, cid: item.cid,
-                      title: item.title, author: item.author,
-                      authorFace: item.authorFace, cover: item.cover,
-                    });
-                  }}
+                  onClick={() => handlePlayFromSearch({
+                    bvid: item.bvid, aid: item.aid, cid: item.cid,
+                    title: item.title, author: item.author,
+                    authorFace: item.authorFace, cover: item.cover,
+                  })}
                   className={`flex gap-3 p-2 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
                   <div className="relative flex-shrink-0 w-44 h-28 sm:w-56 sm:h-32 rounded-lg overflow-hidden bg-gray-700">
-                    <img
-                      src={proxyUrl(item.cover)}
-                      alt={item.title}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                    />
+                    <img src={proxyUrl(item.cover)} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                     <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
                       {item.duration}
                     </span>
                   </div>
                   <div className="flex-1 min-w-0 py-1">
-                    <h3 className={`${textPrimary} text-sm sm:text-base line-clamp-2 leading-snug font-medium`}>
-                      {item.title}
-                    </h3>
-                    <p className={`${textSecondary} text-xs mt-1.5`}>
-                      {item.author} · {item.playCount}播放
-                    </p>
+                    <h3 className={`${textPrimary} text-sm sm:text-base line-clamp-2 leading-snug font-medium`}>{item.title}</h3>
+                    <p className={`${textSecondary} text-xs mt-1.5`}>{item.author} · {item.playCount}播放</p>
                     {item.description && (
                       <p className={`${textSecondary} text-xs mt-1 line-clamp-2`}>{item.description}</p>
                     )}
@@ -251,9 +260,7 @@ function BilibiliApp() {
                 <div className="flex justify-center py-4">
                   <button onClick={handleLoadMoreSearch}
                     className={`px-6 py-2 rounded-full text-sm ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
-                  >
-                    加载更多
-                  </button>
+                  >加载更多</button>
                 </div>
               )}
             </div>
@@ -268,12 +275,8 @@ function BilibiliApp() {
                   <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0 bg-gray-300" />
                   <div className="flex-1 min-w-0">
                     <h3 className={`${textPrimary} text-sm font-medium`}>{item.name}</h3>
-                    <p className={`${textSecondary} text-xs mt-0.5`}>
-                      {item.followerCount}粉丝 · {item.videoCount}视频
-                    </p>
-                    {item.sign && (
-                      <p className={`${textSecondary} text-[11px] line-clamp-1 mt-0.5`}>{item.sign}</p>
-                    )}
+                    <p className={`${textSecondary} text-xs mt-0.5`}>{item.followerCount}粉丝 · {item.videoCount}视频</p>
+                    {item.sign && <p className={`${textSecondary} text-[11px] line-clamp-1 mt-0.5`}>{item.sign}</p>}
                   </div>
                 </button>
               ))}
@@ -281,49 +284,29 @@ function BilibiliApp() {
           )}
         </div>
       ) : (
-        /* Home page content */
         <div className="max-w-[1600px] mx-auto">
-          {/* Video recommendation grid */}
           <VideoGrid
             onPlayVideo={handlePlayFromGrid}
             refreshTrigger={refreshTrigger}
             dark={dark}
           />
-
-          {/* Shorts section - embedded original vertical scroll */}
-          <div className={`px-4 sm:px-6 pb-2 ${dark ? "bg-[#141414]" : "bg-[#f4f5f7]"}`}>
-            <div className={`flex items-center gap-3 mb-3 ${dark ? "border-t border-white/5" : "border-t border-gray-200"} pt-6`}>
-              <h2 className={`text-lg font-bold ${textPrimary}`}>短视频</h2>
-              <span className={`text-xs ${textSecondary}`}>上下滚动切换</span>
-            </div>
-          </div>
-          <div className={`${dark ? "bg-[#141414]" : "bg-[#f4f5f7]"} pb-8`}>
-            <div className="max-w-[480px] mx-auto" style={{ height: "85vh" }}>
-              <ShortsEmbed />
-            </div>
-          </div>
-
-          {/* Load more video cards */}
-          <div className={`px-4 sm:px-6 pb-8 ${dark ? "bg-[#141414]" : "bg-[#f4f5f7]"}`}>
-            <VideoGridMore
-              onPlayVideo={handlePlayFromGrid}
-              refreshTrigger={refreshTrigger}
-              dark={dark}
-            />
-          </div>
+          <VideoGridMore
+            onPlayVideo={handlePlayFromGrid}
+            refreshTrigger={refreshTrigger}
+            dark={dark}
+          />
         </div>
       )}
 
-      {/* Video Player Modal */}
       {playingVideo && (
         <VideoPlayerModal
           video={playingVideo}
           onClose={() => setPlayingVideo(null)}
           dark={dark}
+          forceProxy={globalProxy}
         />
       )}
 
-      {/* User Profile Modal */}
       {showUserProfile && (
         <UserProfileModal
           mid={showUserProfile}
@@ -332,235 +315,6 @@ function BilibiliApp() {
           dark={dark}
         />
       )}
-    </div>
-  );
-}
-
-function ShortsEmbed() {
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [muted, setMuted] = useState(false);
-  const [showControls, setShowControls] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const fetchingRef = useRef(false);
-  const seedRef = useRef(Date.now());
-  const seenBvids = useRef<Set<string>>(new Set());
-  const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [status, setStatus] = useState<"loading" | "playing" | "paused" | "error">("loading");
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [buffered, setBuffered] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [resolved, setResolved] = useState<{
-    videoUrl: string; audioUrl: string | null;
-    proxyVideoUrl: string | null; proxyAudioUrl: string | null;
-    backupUrl: string | null; proxyBackupUrl: string | null;
-    format: "durl" | "dash"; usingProxy: boolean;
-  } | null>(null);
-  const [forceProxy, setForceProxy] = useState(false);
-  const [qn, setQn] = useState(64);
-
-  const fetchFeed = useCallback(async () => {
-    if (fetchingRef.current) return;
-    fetchingRef.current = true;
-    try {
-      const ex = Array.from(seenBvids.current).slice(-30).join(",");
-      const res = await fetch(`/api/bili/feed?seed=${seedRef.current}&size=5&exclude=${ex}`);
-      const data = await res.json();
-      const list: VideoItem[] = data.videos || [];
-      list.forEach((v) => seenBvids.current.add(v.id));
-      setVideos(list);
-      setActiveIndex(0);
-      seedRef.current = data.nextSeed || seedRef.current + 1;
-    } catch {} finally {
-      setLoading(false);
-      fetchingRef.current = false;
-    }
-  }, []);
-
-  useEffect(() => { fetchFeed(); }, [fetchFeed]);
-
-  useEffect(() => {
-    let wheelAccum = 0;
-    const onWheel = (e: WheelEvent) => {
-      if (!containerRef.current) return;
-      const rect = containerRef.current.getBoundingClientRect();
-      if (e.clientY < rect.top || e.clientY > rect.bottom) return;
-      e.preventDefault();
-      wheelAccum += e.deltaY;
-      if (wheelAccum > 60 && activeIndex < videos.length - 1) {
-        wheelAccum = 0; setActiveIndex((p) => p + 1);
-      } else if (wheelAccum < -60 && activeIndex > 0) {
-        wheelAccum = 0; setActiveIndex((p) => p - 1);
-      }
-    };
-    window.addEventListener("wheel", onWheel, { passive: false });
-    return () => window.removeEventListener("wheel", onWheel);
-  }, [activeIndex, videos.length]);
-
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const card = containerRef.current.children[activeIndex] as HTMLElement;
-    if (card) card.scrollIntoView({ behavior: "smooth" });
-  }, [activeIndex]);
-
-  useEffect(() => { setShowControls(true); controlsTimer.current = setTimeout(() => setShowControls(false), 4000); return () => { if (controlsTimer.current) clearTimeout(controlsTimer.current); }; }, []);
-
-  const showControlsTemp = () => {
-    setShowControls(true);
-    if (controlsTimer.current) clearTimeout(controlsTimer.current);
-    controlsTimer.current = setTimeout(() => setShowControls(false), 4000);
-  };
-
-  useEffect(() => {
-    const video = videos[activeIndex];
-    if (!video) return;
-    setResolved(null); setStatus("loading"); setCurrentTime(0);
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/shorts/play?bvid=${video.bvid}&qn=${qn}`);
-        const data = await res.json();
-        if (cancelled) return;
-        if (data.videoUrl) {
-          const useProxy = forceProxy && data.proxyVideoUrl;
-          setResolved({
-            videoUrl: useProxy ? data.proxyVideoUrl : data.videoUrl,
-            audioUrl: useProxy && data.proxyAudioUrl ? data.proxyAudioUrl : (data.audioUrl || null),
-            proxyVideoUrl: data.proxyVideoUrl || null,
-            proxyAudioUrl: data.proxyAudioUrl || null,
-            backupUrl: data.backupUrl || null,
-            proxyBackupUrl: data.proxyBackupUrl || null,
-            format: data.format || "durl",
-            usingProxy: useProxy,
-          });
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, [activeIndex, videos, qn, forceProxy]);
-
-  useEffect(() => {
-    const v = videoRef.current;
-    if (!v || !resolved) return;
-    v.src = resolved.videoUrl;
-    v.load();
-    v.muted = muted || resolved.format === "dash";
-    const onPlaying = () => setStatus("playing");
-    const onPause = () => setStatus("paused");
-    const onError = () => {
-      if (resolved.proxyVideoUrl && !resolved.usingProxy) {
-        setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyVideoUrl!, usingProxy: true } : null);
-      } else if (resolved.backupUrl) {
-        setResolved((prev) => prev ? { ...prev, videoUrl: resolved.backupUrl!, backupUrl: null } : null);
-      } else { setStatus("error"); }
-    };
-    const onTime = () => { setCurrentTime(v.currentTime); setDuration(v.duration || 0); };
-    const onProgress = () => { if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1)); };
-    const onLoaded = () => { v.play().catch(() => {}); };
-    v.addEventListener("playing", onPlaying);
-    v.addEventListener("pause", onPause);
-    v.addEventListener("error", onError);
-    v.addEventListener("timeupdate", onTime);
-    v.addEventListener("progress", onProgress);
-    v.addEventListener("loadedmetadata", onLoaded);
-    return () => {
-      v.removeEventListener("playing", onPlaying);
-      v.removeEventListener("pause", onPause);
-      v.removeEventListener("error", onError);
-      v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("progress", onProgress);
-      v.removeEventListener("loadedmetadata", onLoaded);
-    };
-  }, [resolved?.videoUrl, muted]);
-
-  const syncAudio = () => {
-    const v = videoRef.current; const a = audioRef.current;
-    if (!v || !a) return;
-    if (Math.abs(a.currentTime - v.currentTime) > 0.3) a.currentTime = v.currentTime;
-  };
-
-  const QN_OPTIONS = [6, 16, 32, 64, 80];
-  const QN_MAP: Record<number, string> = { 6: "240P", 16: "360P", 32: "480P", 64: "720P", 80: "1080P" };
-
-  if (loading) {
-    return (
-      <div className="w-full h-full bg-black rounded-2xl overflow-hidden flex items-center justify-center">
-        <div className="w-8 h-8 rounded-full border-3 border-white/20 border-t-white animate-spin" />
-      </div>
-    );
-  }
-
-  const activeVideo = videos[activeIndex];
-
-  return (
-    <div className="w-full h-full bg-black rounded-2xl overflow-hidden relative" onMouseMove={showControlsTemp}>
-      <div ref={containerRef} className="h-full w-full" style={{ scrollSnapType: "y mandatory", overflowY: "hidden" }}>
-        {videos.map((video, index) => (
-          <div key={video.id} className="h-full w-full snap-start relative bg-black shrink-0 flex items-center justify-center">
-            {index === activeIndex ? (
-              <div className="absolute inset-0 bg-black" />
-            ) : (
-              <>
-                <img src={proxyUrl(video.cover)} alt={video.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                <div className="absolute inset-0 bg-black/40" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Play className="w-12 h-12 text-white/70" />
-                </div>
-                <div className="absolute bottom-20 left-4 right-4">
-                  <h2 className="text-white/90 text-sm font-semibold line-clamp-1">{video.title}</h2>
-                  <p className="text-white/50 text-xs mt-1">@{video.author} · {video.duration}</p>
-                </div>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {activeVideo && resolved && (
-        <>
-          <video
-            ref={videoRef}
-            crossOrigin="anonymous"
-            className="absolute inset-0 w-full h-full object-contain"
-            playsInline loop preload="auto"
-            poster={proxyUrl(activeVideo.cover)}
-            onClick={() => {
-              const v = videoRef.current;
-              if (v) { if (v.paused) v.play().catch(() => {}); else v.pause(); }
-            }}
-            onTimeUpdate={resolved.format === "dash" ? syncAudio : undefined}
-          />
-          {resolved.format === "dash" && resolved.audioUrl && (
-            <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" loop />
-          )}
-        </>
-      )}
-
-      {/* Top controls */}
-      <div className={`absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/60 to-transparent p-3 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-        <h3 className="text-white text-sm font-medium line-clamp-1">{activeVideo?.title}</h3>
-        <p className="text-white/60 text-xs mt-0.5">@{activeVideo?.author} · {activeVideo?.duration}</p>
-      </div>
-
-      {/* Bottom controls */}
-      <div className={`absolute bottom-0 left-0 right-0 z-10 bg-gradient-to-t from-black/60 to-transparent p-3 transition-opacity duration-300 ${showControls ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-        <div className="flex items-center gap-1 justify-end">
-          <button onClick={() => setMuted(!muted)} className={`p-1.5 rounded-full ${muted ? "bg-white/20" : "bg-white/10 hover:bg-white/20"}`}>
-            {muted ? <span className="text-white text-[10px] px-1">🔇</span> : <span className="text-white text-[10px] px-1">🔊</span>}
-          </button>
-          <button onClick={() => setForceProxy(!forceProxy)} className={`px-2 py-1 rounded text-[9px] ${forceProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/40"}`}>
-            {forceProxy ? "代理" : "直连"}
-          </button>
-          {QN_OPTIONS.map((opt) => (
-            <button key={opt} onClick={() => setQn(opt)}
-              className={`px-1.5 py-0.5 rounded text-[9px] ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}
-            >{QN_MAP[opt]}</button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }
@@ -581,14 +335,12 @@ function VideoGridMore({
     (async () => {
       try {
         const ex = Array.from(seenBvids.current).slice(-50).join(",");
-        const res = await fetch(`/api/bili/feed?seed=${Date.now()}&size=12&exclude=${ex}`);
+        const res = await fetch(`/api/bili/feed?seed=${Date.now() + 99999}&size=12&exclude=${ex}`);
         const data = await res.json();
         const list: VideoItem[] = data.videos || [];
         list.forEach((v) => seenBvids.current.add(v.id));
         setVideos(list);
-      } catch {} finally {
-        setLoading(false);
-      }
+      } catch {} finally { setLoading(false); }
     })();
   }, [refreshTrigger]);
 
@@ -625,9 +377,7 @@ function VideoGridMore({
               </span>
             </div>
             <div className="p-3">
-              <h3 className={`text-sm font-medium line-clamp-2 mb-1.5 leading-snug ${textPrimary}`}>
-                {video.title}
-              </h3>
+              <h3 className={`text-sm font-medium line-clamp-2 mb-1.5 leading-snug ${textPrimary}`}>{video.title}</h3>
               <div className={`flex items-center gap-3 text-[11px] ${textSecondary}`}>
                 <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {video.playCount}</span>
                 <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" /> {video.likeCount}</span>
@@ -697,11 +447,7 @@ function UserProfileModal({
                 {videos.map((v) => (
                   <button
                     key={v.id}
-                    onClick={() => onPlayVideo({
-                      bvid: v.bvid, aid: v.aid, cid: v.cid,
-                      title: v.title, author: v.author,
-                      authorFace: v.authorFace, cover: v.cover,
-                    })}
+                    onClick={() => onPlayVideo({ bvid: v.bvid, aid: v.aid, cid: v.cid, title: v.title, author: v.author, authorFace: v.authorFace, cover: v.cover })}
                     className={`${cardBg} rounded-xl overflow-hidden transition-all text-left w-full`}
                   >
                     <div className="aspect-video overflow-hidden">
