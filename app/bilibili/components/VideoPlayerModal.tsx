@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play, Pause, Volume2, VolumeX, X, ExternalLink,
-  Eye, Heart, MessageCircle, AlertCircle, ChevronRight, ChevronLeft,
-  Shield, ShieldOff, Loader2,
+  AlertCircle, ChevronRight, ChevronLeft, Shield, ShieldOff,
 } from "lucide-react";
 import { proxyUrl } from "@/lib/bilibili";
 import DanmakuLayer from "./DanmakuLayer";
@@ -21,7 +20,6 @@ interface ResolvedPlayData {
   backupUrl: string | null; proxyBackupUrl: string | null;
   format: "durl" | "dash"; usingProxy: boolean;
   qn: number; qnLabel: string;
-  qualities: { qn: number; label: string; active: boolean }[];
 }
 
 const QN_MAP: Record<number, string> = { 6: "240P", 16: "360P", 32: "480P", 64: "720P", 80: "1080P" };
@@ -45,32 +43,34 @@ export default function VideoPlayerModal({
   dark: boolean;
   forceProxy: boolean;
 }) {
+  const [phase, setPhase] = useState<"resolving" | "buffering" | "playing" | "paused" | "error" | "fallback">("resolving");
   const [resolved, setResolved] = useState<ResolvedPlayData | null>(null);
-  const [status, setStatus] = useState<"loading" | "playing" | "paused" | "error" | "fallback">("loading");
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
   const [muted, setMuted] = useState(false);
-  const [localProxy, setLocalProxy] = useState(forceProxy);
   const [qn, setQn] = useState(DEFAULT_QN);
   const [showDanmaku, setShowDanmaku] = useState(true);
   const [showComments, setShowComments] = useState(true);
+  const [useProxy, setUseProxy] = useState(forceProxy);
   const [retryCount, setRetryCount] = useState(0);
+  const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
   const lastLoadedRef = useRef(0);
   const lastTimeRef = useRef(Date.now());
+  const loadTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!video) return;
+    setPhase("resolving");
     setResolved(null);
-    setStatus("loading");
-    setLocalProxy(forceProxy);
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
     setLoadSpeedKbps(0);
+    setUseProxy(forceProxy);
+    if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
 
     let cancelled = false;
     (async () => {
@@ -79,35 +79,38 @@ export default function VideoPlayerModal({
         const data = await res.json();
         if (cancelled) return;
         if (data.videoUrl) {
-          const useProxy = localProxy && data.proxyVideoUrl;
-          setResolved({
-            videoUrl: useProxy ? data.proxyVideoUrl : data.videoUrl,
-            audioUrl: useProxy && data.proxyAudioUrl ? data.proxyAudioUrl : (data.audioUrl || null),
+          const proxyMode = forceProxy && data.proxyVideoUrl;
+          const r: ResolvedPlayData = {
+            videoUrl: proxyMode ? data.proxyVideoUrl : data.videoUrl,
+            audioUrl: proxyMode && data.proxyAudioUrl ? data.proxyAudioUrl : (data.audioUrl || null),
             proxyVideoUrl: data.proxyVideoUrl || null,
             proxyAudioUrl: data.proxyAudioUrl || null,
             backupUrl: data.backupUrl || null,
             proxyBackupUrl: data.proxyBackupUrl || null,
             format: data.format || "durl",
-            usingProxy: useProxy,
+            usingProxy: proxyMode,
             qn: data.qn || qn,
             qnLabel: data.qnLabel || QN_MAP[qn] || `${qn}P`,
-            qualities: data.qualities || [],
-          });
+          };
+          setResolved(r);
+          setPhase("buffering");
         } else if (data.fallback) {
-          setStatus("fallback");
+          setPhase("fallback");
         } else {
-          setStatus("error");
+          setPhase("error");
         }
       } catch {
-        if (!cancelled) setStatus("error");
+        if (!cancelled) setPhase("error");
       }
     })();
     return () => { cancelled = true; };
-  }, [video?.bvid, qn, localProxy, retryCount]);
+  }, [video?.bvid, qn, forceProxy, retryCount]);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v || !resolved) return;
+    if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
+
     v.src = resolved.videoUrl;
     v.load();
     v.muted = muted || resolved.format === "dash";
@@ -115,26 +118,27 @@ export default function VideoPlayerModal({
     let speedTimer: ReturnType<typeof setInterval> | null = null;
 
     const onPlaying = () => {
-      setStatus("playing");
+      setPhase("playing");
       if (speedTimer) clearInterval(speedTimer);
       setLoadSpeedKbps(0);
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     };
-    const onPause = () => setStatus("paused");
+    const onPause = () => { if (phase !== "buffering") setPhase("paused"); };
     const onError = () => {
       if (resolved.proxyVideoUrl && !resolved.usingProxy) {
         setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyVideoUrl!, usingProxy: true } : null);
+        setUseProxy(true);
       } else if (resolved.backupUrl) {
         setResolved((prev) => prev ? { ...prev, videoUrl: resolved.backupUrl!, backupUrl: null } : null);
       } else {
-        setStatus("error");
+        setPhase("error");
       }
     };
     const onTime = () => { setCurrentTime(v.currentTime); setDuration(v.duration || 0); };
     const onProgress = () => {
-      if (v.buffered.length > 0) {
-        setBuffered(v.buffered.end(v.buffered.length - 1));
-      }
+      if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1));
     };
+    const onLoaded = () => { v.play().catch(() => {}); };
 
     speedTimer = setInterval(() => {
       if (!v.buffered.length) return;
@@ -150,7 +154,12 @@ export default function VideoPlayerModal({
       }
     }, 500);
 
-    const onLoaded = () => { v.play().catch(() => {}); };
+    loadTimeoutRef.current = setTimeout(() => {
+      if (phase === "buffering" && resolved.proxyVideoUrl && !resolved.usingProxy) {
+        setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyVideoUrl!, usingProxy: true } : null);
+        setUseProxy(true);
+      }
+    }, 10000);
 
     v.addEventListener("playing", onPlaying);
     v.addEventListener("pause", onPause);
@@ -167,6 +176,7 @@ export default function VideoPlayerModal({
       v.removeEventListener("progress", onProgress);
       v.removeEventListener("loadedmetadata", onLoaded);
       if (speedTimer) clearInterval(speedTimer);
+      if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
     };
   }, [resolved?.videoUrl, muted]);
 
@@ -190,24 +200,25 @@ export default function VideoPlayerModal({
 
   if (!video) return null;
 
-  const bg = dark ? "bg-[#0a0a0a]" : "bg-white";
   const panelBg = dark ? "bg-[#141414]" : "bg-white";
   const panelBorder = dark ? "border-white/10" : "border-gray-200";
+  const showVideo = resolved && (phase === "buffering" || phase === "playing" || phase === "paused" || phase === "error");
 
   return (
-    <div className={`fixed inset-0 z-[70] ${bg} flex`}>
+    <div className="fixed inset-0 z-[70] bg-black flex">
+      {/* Close button */}
       <button
         onClick={onClose}
-        className={`absolute top-4 left-4 z-50 w-8 h-8 rounded-full flex items-center justify-center transition-colors ${
-          dark ? "bg-white/10 hover:bg-white/20 text-white" : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-        }`}
+        className="absolute top-4 left-4 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
       >
         <X className="w-4 h-4" />
       </button>
 
+      {/* Main area */}
       <div className={`flex-1 relative ${showComments ? "mr-[380px]" : ""} transition-all duration-300`}>
         <div className="absolute inset-0 bg-black flex items-center justify-center">
-          {status === "loading" && (
+          {/* Resolving phase: API call in progress */}
+          {phase === "resolving" && (
             <div className="flex flex-col items-center gap-3">
               <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
               <div className="absolute inset-0 bg-black/40" />
@@ -216,23 +227,60 @@ export default function VideoPlayerModal({
             </div>
           )}
 
-          {status === "error" && (
-            <div className="flex flex-col items-center gap-3 z-10 px-4">
-              <AlertCircle className="w-10 h-10 text-white/60" />
-              <p className="text-white/60 text-xs">播放失败</p>
-              <div className="flex flex-wrap items-center justify-center gap-2">
+          {/* Video element: always rendered when we have data, so events can fire */}
+          {showVideo && (
+            <video
+              ref={videoRef}
+              crossOrigin="anonymous"
+              className="absolute inset-0 w-full h-full object-contain cursor-pointer"
+              playsInline preload="auto"
+              poster={proxyUrl(video.cover)}
+              onClick={togglePlay}
+              onTimeUpdate={resolved.format === "dash" ? syncAudio : undefined}
+            />
+          )}
+
+          {showVideo && resolved.format === "dash" && resolved.audioUrl && (
+            <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" />
+          )}
+
+          {/* Buffering overlay */}
+          {phase === "buffering" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-10">
+              <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+              <div className="absolute inset-0 bg-black/50" />
+              <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
+              <p className="text-white/50 text-xs mt-3">缓冲中...</p>
+              {loadSpeedKbps > 0 && (
+                <p className="text-white/40 text-[10px] mt-1">
+                  {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)} Mbps` : `${loadSpeedKbps} Kbps`}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Error overlay */}
+          {phase === "error" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4">
+              <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+              <div className="absolute inset-0 bg-black/60" />
+              <AlertCircle className="w-10 h-10 text-white/60 relative" />
+              <p className="text-white/60 text-xs mt-3 relative">播放失败</p>
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-3 relative">
                 <button onClick={() => { setRetryCount((c) => c + 1); }}
                   className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs hover:bg-white/20"
                 >重试</button>
-                <button onClick={() => { setLocalProxy(true); setRetryCount((c) => c + 1); }}
-                  className="px-4 py-2 rounded-xl bg-green-500/20 text-green-300 text-xs hover:bg-green-500/30 flex items-center gap-1"
-                ><Shield className="w-3 h-3" /> 代理重试</button>
+                {resolved?.proxyVideoUrl && !resolved.usingProxy && (
+                  <button onClick={() => { setUseProxy(true); setRetryCount((c) => c + 1); }}
+                    className="px-4 py-2 rounded-xl bg-green-500/20 text-green-300 text-xs hover:bg-green-500/30 flex items-center gap-1"
+                  ><Shield className="w-3 h-3" /> 代理重试</button>
+                )}
                 <a href={`https://www.bilibili.com/video/${video.bvid}`} target="_blank" rel="noopener noreferrer"
                   className="px-4 py-2 rounded-xl bg-white/10 text-white text-xs hover:bg-white/20 flex items-center gap-2">
                   <ExternalLink className="w-3.5 h-3.5" /> 在B站观看
                 </a>
               </div>
-              <div className="flex gap-1 mt-2">
+              <div className="flex gap-1 mt-3 relative">
                 {QN_OPTIONS.map((opt) => (
                   <button key={opt} onClick={() => { setQn(opt); setRetryCount((c) => c + 1); }}
                     className={`px-2 py-1 rounded text-[10px] font-medium ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/50 hover:bg-white/20"}`}
@@ -242,109 +290,118 @@ export default function VideoPlayerModal({
             </div>
           )}
 
-          {status === "fallback" && (
-            <div className="flex flex-col items-center gap-3 z-10 px-4 text-center">
-              <AlertCircle className="w-12 h-12 text-amber-400/80" />
-              <p className="text-white/70 text-sm font-medium">该视频暂无播放源</p>
-              <p className="text-white/40 text-xs">B站可能限制了该视频的第三方播放</p>
+          {/* Fallback overlay */}
+          {phase === "fallback" && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4 text-center">
+              <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
+              <div className="absolute inset-0 bg-black/60" />
+              <AlertCircle className="w-12 h-12 text-amber-400/80 relative" />
+              <p className="text-white/70 text-sm font-medium mt-3 relative">该视频暂无播放源</p>
+              <p className="text-white/40 text-xs mt-1 relative">B站可能限制了该视频的第三方播放</p>
               <a href={`https://www.bilibili.com/video/${video.bvid}`} target="_blank" rel="noopener noreferrer"
-                className="px-5 py-2.5 rounded-xl bg-pink-500/80 text-white text-sm hover:bg-pink-500 flex items-center gap-2">
+                className="mt-4 px-5 py-2.5 rounded-xl bg-pink-500/80 text-white text-sm hover:bg-pink-500 flex items-center gap-2 relative">
                 <ExternalLink className="w-4 h-4" /> 前往B站观看
               </a>
               <button onClick={() => setRetryCount((c) => c + 1)}
-                className="text-white/30 text-xs hover:text-white/60 mt-2">重试加载</button>
+                className="text-white/30 text-xs hover:text-white/60 mt-3 relative">重试加载</button>
             </div>
           )}
 
-          {(status === "playing" || status === "paused") && resolved && (
-            <>
-              <video
-                ref={videoRef}
-                crossOrigin="anonymous"
-                className="absolute inset-0 w-full h-full object-contain cursor-pointer"
-                playsInline preload="auto" poster={proxyUrl(video.cover)}
-                onClick={togglePlay}
-                onTimeUpdate={resolved.format === "dash" ? syncAudio : undefined}
-              />
-              {resolved.format === "dash" && resolved.audioUrl && (
-                <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" />
-              )}
+          {/* Pause overlay */}
+          {phase === "paused" && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+              <Play className="w-14 h-14 text-white/70 drop-shadow-lg" />
+            </div>
+          )}
 
-              {showDanmaku && (
-                <DanmakuLayer
-                  cid={video.cid}
-                  currentTime={currentTime}
-                  playing={status === "playing"}
-                  enabled={showDanmaku}
-                  speed={10000}
+          {/* Danmaku */}
+          {showDanmaku && resolved && (phase === "playing" || phase === "paused") && (
+            <DanmakuLayer
+              cid={video.cid}
+              currentTime={currentTime}
+              playing={phase === "playing"}
+              enabled={showDanmaku}
+              speed={10000}
+            />
+          )}
+
+          {/* Top info bar */}
+          {(phase === "playing" || phase === "paused" || phase === "buffering") && (
+            <div className="absolute top-0 left-0 right-0 z-30 p-4 bg-gradient-to-b from-black/50 to-transparent pointer-events-none">
+              <h2 className="text-white text-sm font-medium line-clamp-1 ml-10">{video.title}</h2>
+              <div className="flex items-center gap-2 mt-1.5 ml-10">
+                <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
+                <span className="text-white/70 text-xs">{video.author}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom controls */}
+          {(phase === "playing" || phase === "paused" || phase === "buffering") && (
+            <div className="absolute bottom-0 left-0 right-0 z-30 p-4 bg-gradient-to-t from-black/60 to-transparent">
+              {loadSpeedKbps > 0 && phase === "buffering" && (
+                <div className="flex justify-end mb-1">
+                  <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">
+                    {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)}Mbps` : `${loadSpeedKbps}Kbps`}
+                  </span>
+                </div>
+              )}
+              <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-1.5">
+                <div className="absolute left-0 top-0 h-full bg-white/30 rounded-full"
+                  style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }}
                 />
-              )}
-
-              {status === "paused" && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <Play className="w-14 h-14 text-white/70 drop-shadow-lg" />
-                </div>
-              )}
-
-              <div className="absolute top-0 left-0 right-0 z-40 p-4 bg-gradient-to-b from-black/50 to-transparent">
-                <h2 className="text-white text-sm font-medium line-clamp-1 ml-10">{video.title}</h2>
-                <div className="flex items-center gap-2 mt-1.5 ml-10">
-                  <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
-                  <span className="text-white/70 text-xs">{video.author}</span>
+                <div className="absolute left-0 top-0 h-full bg-pink-500 rounded-full"
+                  style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }}
+                />
+                <input type="range" min={0} max={duration || 1} step={0.1} value={currentTime}
+                  onChange={(e) => seek(parseFloat(e.target.value))}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-white/60 text-[11px]">{fmtTime(currentTime)} / {fmtTime(duration)}</span>
+                <div className="flex items-center gap-1 ml-auto">
+                  <button onClick={() => setMuted(!muted)} className="p-1 rounded hover:bg-white/10 pointer-events-auto">
+                    {muted ? <VolumeX className="w-4 h-4 text-white/60" /> : <Volume2 className="w-4 h-4 text-white/60" />}
+                  </button>
+                  <button onClick={() => setShowDanmaku(!showDanmaku)}
+                    className={`px-2 py-1 rounded text-[10px] pointer-events-auto ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}>
+                    弹{showDanmaku ? "✓" : ""}
+                  </button>
+                  <button
+                    onClick={() => { setUseProxy(!useProxy); setRetryCount((c) => c + 1); }}
+                    className={`px-2 py-1 rounded text-[10px] flex items-center gap-1 pointer-events-auto ${
+                      useProxy ? "bg-green-500/30 text-green-300" : "bg-white/10 text-white/60"
+                    }`}
+                  >
+                    {useProxy ? <Shield className="w-3 h-3" /> : <ShieldOff className="w-3 h-3" />}
+                    {useProxy ? "代理" : "直连"}
+                  </button>
+                  {QN_OPTIONS.map((opt) => (
+                    <button key={opt} onClick={() => setQn(opt)}
+                      className={`px-1.5 py-0.5 rounded text-[9px] pointer-events-auto ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}
+                    >{QN_MAP[opt]}</button>
+                  ))}
                 </div>
               </div>
-
-              <div className="absolute bottom-0 left-0 right-0 z-40 p-4 bg-gradient-to-t from-black/60 to-transparent">
-                {loadSpeedKbps > 0 && (
-                  <div className="flex justify-end mb-1">
-                    <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">
-                      {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)}Mbps` : `${loadSpeedKbps}Kbps`}
-                    </span>
-                  </div>
-                )}
-                <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-1.5">
-                  <div className="absolute left-0 top-0 h-full bg-white/30 rounded-full" style={{ width: `${duration > 0 ? (buffered / duration) * 100 : 0}%` }} />
-                  <div className="absolute left-0 top-0 h-full bg-pink-500 rounded-full" style={{ width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }} />
-                  <input type="range" min={0} max={duration || 1} step={0.1} value={currentTime}
-                    onChange={(e) => seek(parseFloat(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-white/60 text-[11px]">{fmtTime(currentTime)} / {fmtTime(duration)}</span>
-                  <div className="flex items-center gap-1 ml-auto">
-                    <button onClick={() => setMuted(!muted)} className="p-1 rounded hover:bg-white/10">
-                      {muted ? <VolumeX className="w-4 h-4 text-white/60" /> : <Volume2 className="w-4 h-4 text-white/60" />}
-                    </button>
-                    <button onClick={() => setShowDanmaku(!showDanmaku)} className={`px-2 py-1 rounded text-[10px] ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}>
-                      弹{showDanmaku ? "✓" : ""}
-                    </button>
-                    {QN_OPTIONS.map((opt) => (
-                      <button key={opt} onClick={() => setQn(opt)}
-                        className={`px-1.5 py-0.5 rounded text-[9px] ${qn === opt ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"}`}
-                      >{QN_MAP[opt]}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </>
+            </div>
           )}
         </div>
       </div>
 
+      {/* Comments toggle */}
       <button
         onClick={() => setShowComments(!showComments)}
         className={`absolute z-50 top-1/2 -translate-y-1/2 w-6 h-16 flex items-center justify-center transition-all duration-300 ${
           showComments ? "right-[380px]" : "right-0"
-        } ${dark ? "bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white/50 hover:text-white/80" : "bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700"} rounded-l-lg`}
+        } bg-[#1a1a1a] hover:bg-[#2a2a2a] text-white/50 hover:text-white/80 rounded-l-lg`}
       >
         {showComments ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
       </button>
 
-      <div
-        className={`${panelBg} border-l ${panelBorder} overflow-y-auto transition-all duration-300 flex-shrink-0 ${
-          showComments ? "w-[380px]" : "w-0 border-l-0 overflow-hidden"
-        }`}
-      >
+      {/* Right panel: comments */}
+      <div className={`${panelBg} border-l ${panelBorder} overflow-y-auto transition-all duration-300 flex-shrink-0 ${
+        showComments ? "w-[380px]" : "w-0 border-l-0 overflow-hidden"
+      }`}>
         {showComments && (
           <div className="p-4">
             <h3 className={`text-sm font-semibold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>{video.title}</h3>
