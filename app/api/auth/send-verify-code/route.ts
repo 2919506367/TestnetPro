@@ -23,7 +23,8 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch {
+  } catch (e) {
+    console.error("send-verify-code error:", e);
     return NextResponse.json({ error: "请求失败" }, { status: 500 });
   }
 }
