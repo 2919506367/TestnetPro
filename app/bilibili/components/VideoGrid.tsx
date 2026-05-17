@@ -17,12 +17,10 @@ export default function VideoGrid({
   onPlayVideo,
   refreshTrigger,
   dark,
-  base = "",
 }: {
   onPlayVideo: (video: VideoItem) => void;
   refreshTrigger: number;
   dark: boolean;
-  base?: string;
 }) {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +37,7 @@ export default function VideoGrid({
     try {
       const ex = Array.from(seenBvids.current).slice(-50).join(",");
       const size = append ? 8 : 12;
-      const res = await fetch(`${base}/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`);
+      const res = await fetch(`/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`);
       const data = await res.json();
       const list: VideoItem[] = data.videos || [];
 
