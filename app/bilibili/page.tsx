@@ -79,27 +79,25 @@ function BilibiliApp() {
     }
   }, []);
 
-  const handleSearch = (val: string) => {
+  const handleSearchInput = (val: string) => {
     setSearchQuery(val);
-    if (val.trim()) {
-      setShowSearch(true);
-      setSearchPage(1);
-      doSearch(val, searchType, 1, false);
-    } else {
+    if (!val.trim()) {
       setShowSearch(false);
       setSearchResults([]);
     }
   };
 
-  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      const q = searchQuery.trim();
-      if (q) {
-        setShowSearch(true);
-        setSearchPage(1);
-        doSearch(q, searchType, 1, false);
-      }
+  const performSearch = () => {
+    const q = searchQuery.trim();
+    if (q) {
+      setShowSearch(true);
+      setSearchPage(1);
+      doSearch(q, searchType, 1, false);
     }
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") performSearch();
   };
 
   const handleLoadMoreSearch = () => {
@@ -152,7 +150,7 @@ function BilibiliApp() {
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => handleSearchInput(e.target.value)}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="搜索视频..."
                 className={`w-full ${searchInputBg} ${textPrimary} placeholder:text-white/30 dark:placeholder:text-white/30 placeholder:text-gray-400 text-sm rounded-xl pl-10 pr-4 py-2.5 outline-none transition-all focus:ring-2 ${dark ? "focus:ring-pink-500/50" : "focus:ring-pink-400/50"}`}
@@ -171,10 +169,7 @@ function BilibiliApp() {
                 </button>
               )}
               <button
-                onClick={() => {
-                  const q = searchQuery.trim();
-                  if (q) { setShowSearch(true); setSearchPage(1); doSearch(q, searchType, 1, false); }
-                }}
+                onClick={performSearch}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-pink-500 hover:bg-pink-600 text-white text-xs px-3 py-1 rounded-lg"
               >
                 搜索
