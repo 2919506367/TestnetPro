@@ -71,7 +71,7 @@ function BilibiliApp() {
       } else {
         setSearchResults(data.results || []);
       }
-      setSearchHasMore(data.results?.length >= 15);
+      setSearchHasMore(data.hasMore || false);
     } catch {
       if (!append) setSearchResults([]);
     } finally {
