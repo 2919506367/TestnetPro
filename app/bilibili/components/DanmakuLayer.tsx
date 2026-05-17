@@ -21,23 +21,40 @@ interface FloatingDanmaku {
   track: number;
 }
 
+export interface DanmakuSettings {
+  enabled: boolean;
+  opacity: number;
+  fontSize: number;
+  speed: number;
+  blockTop: boolean;
+  blockBottom: boolean;
+  blockScroll: boolean;
+  dedupe: boolean;
+}
+
+export const DANMAKU_DEFAULTS: DanmakuSettings = {
+  enabled: true,
+  opacity: 0.75,
+  fontSize: 22,
+  speed: 8000,
+  blockTop: false,
+  blockBottom: false,
+  blockScroll: false,
+  dedupe: true,
+};
+
 export default function DanmakuLayer({
   cid,
   currentTime,
   playing,
-  enabled,
-  opacity = 0.75,
-  fontSize = 22,
-  speed = 8000,
+  settings,
 }: {
   cid: number;
   currentTime: number;
   playing: boolean;
-  enabled: boolean;
-  opacity?: number;
-  fontSize?: number;
-  speed?: number;
+  settings: DanmakuSettings;
 }) {
+  const { enabled, opacity, fontSize, speed, blockTop, blockBottom, blockScroll, dedupe } = settings;
   const [danmakus, setDanmakus] = useState<DanmakuItem[]>([]);
   const [floating, setFloating] = useState<FloatingDanmaku[]>([]);
   const [topDanmakus, setTopDanmakus] = useState<FloatingDanmaku[]>([]);
@@ -48,6 +65,7 @@ export default function DanmakuLayer({
   const lastTime = useRef(-1);
   const trackOccupied = useRef<Map<number, number>>(new Map());
   const animFrameRef = useRef<number>(0);
+  const recentTexts = useRef<Map<string, number>>(new Map());
 
   useEffect(() => {
     if (!cid) return;
@@ -61,15 +79,14 @@ export default function DanmakuLayer({
         }
       } catch {}
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [cid]);
 
   useEffect(() => {
     playedSet.current.clear();
     lastTime.current = -1;
     trackOccupied.current.clear();
+    recentTexts.current.clear();
     setFloating([]);
     setTopDanmakus([]);
     setBottomDanmakus([]);
@@ -79,18 +96,13 @@ export default function DanmakuLayer({
     (now: number, totalTracks = 10): number => {
       for (let t = 0; t < totalTracks; t++) {
         const occupiedUntil = trackOccupied.current.get(t) || 0;
-        if (now >= occupiedUntil) {
-          return t;
-        }
+        if (now >= occupiedUntil) return t;
       }
       let earliestTrack = 0;
       let earliestTime = Infinity;
       for (let t = 0; t < totalTracks; t++) {
         const ot = trackOccupied.current.get(t) || 0;
-        if (ot < earliestTime) {
-          earliestTime = ot;
-          earliestTrack = t;
-        }
+        if (ot < earliestTime) { earliestTime = ot; earliestTrack = t; }
       }
       return earliestTrack;
     },
@@ -103,59 +115,49 @@ export default function DanmakuLayer({
     const containerHeight = containerRef.current?.clientHeight || 600;
 
     const emitDanmaku = (item: DanmakuItem) => {
+      // Deduplicate: skip repeated text within 5 seconds
+      if (dedupe) {
+        const lastTime = recentTexts.current.get(item.text);
+        if (lastTime && currentTime - lastTime < 5) return;
+        recentTexts.current.set(item.text, currentTime);
+        // Cleanup old entries
+        if (recentTexts.current.size > 200) recentTexts.current.clear();
+      }
+
       const id = idCounter.current++;
       const scaledSize = Math.max(14, Math.min(32, (item.size / 25) * fontSize));
       const duration = speed + Math.random() * 2000;
 
+      // Mode 5 = top fixed, mode 4 = bottom fixed, others = scrolling
       if (item.mode === 5) {
+        if (blockTop) return;
         const td: FloatingDanmaku = {
-          id,
-          text: item.text,
-          color: item.color,
-          size: scaledSize,
+          id, text: item.text, color: item.color, size: scaledSize,
           top: containerHeight * 0.05 + Math.random() * containerHeight * 0.15,
-          startTime: currentTime,
-          duration: 5000,
-          track: 0,
+          startTime: currentTime, duration: 5000, track: 0,
         };
-        setTopDanmakus((prev) => [...prev.slice(-3), td]);
-        setTimeout(() => {
-          setTopDanmakus((prev) => prev.filter((d) => d.id !== id));
-        }, 5000);
+        setTopDanmakus((prev) => [...prev.slice(-5), td]);
+        setTimeout(() => { setTopDanmakus((prev) => prev.filter((d) => d.id !== id)); }, 5000);
       } else if (item.mode === 4) {
+        if (blockBottom) return;
         const bd: FloatingDanmaku = {
-          id,
-          text: item.text,
-          color: item.color,
-          size: scaledSize,
+          id, text: item.text, color: item.color, size: scaledSize,
           top: containerHeight * 0.8 + Math.random() * containerHeight * 0.15,
-          startTime: currentTime,
-          duration: 5000,
-          track: 0,
+          startTime: currentTime, duration: 5000, track: 0,
         };
-        setBottomDanmakus((prev) => [...prev.slice(-3), bd]);
-        setTimeout(() => {
-          setBottomDanmakus((prev) => prev.filter((d) => d.id !== id));
-        }, 5000);
+        setBottomDanmakus((prev) => [...prev.slice(-5), bd]);
+        setTimeout(() => { setBottomDanmakus((prev) => prev.filter((d) => d.id !== id)); }, 5000);
       } else {
+        if (blockScroll) return;
         const track = getAvailableTrack(currentTime);
-        const trackTop =
-          ((track + 0.5) / 10) * containerHeight * 0.7 + containerHeight * 0.05;
+        const trackTop = ((track + 0.5) / 10) * containerHeight * 0.7 + containerHeight * 0.05;
         const fd: FloatingDanmaku = {
-          id,
-          text: item.text,
-          color: item.color,
-          size: scaledSize,
-          top: trackTop,
-          startTime: currentTime,
-          duration,
-          track,
+          id, text: item.text, color: item.color, size: scaledSize,
+          top: trackTop, startTime: currentTime, duration, track,
         };
         trackOccupied.current.set(track, currentTime + duration / 1000);
         setFloating((prev) => [...prev, fd]);
-        setTimeout(() => {
-          setFloating((prev) => prev.filter((d) => d.id !== id));
-        }, duration);
+        setTimeout(() => { setFloating((prev) => prev.filter((d) => d.id !== id)); }, duration);
       }
     };
 
@@ -164,10 +166,7 @@ export default function DanmakuLayer({
         animFrameRef.current = requestAnimationFrame(processFrame);
         return;
       }
-
-      if (currentTime < lastTime.current) {
-        playedSet.current.clear();
-      }
+      if (currentTime < lastTime.current) playedSet.current.clear();
       lastTime.current = currentTime;
 
       const lookAhead = 1.5;
@@ -181,25 +180,17 @@ export default function DanmakuLayer({
           emitDanmaku(d);
         }
       }
-
       animFrameRef.current = requestAnimationFrame(processFrame);
     };
 
     animFrameRef.current = requestAnimationFrame(processFrame);
-
-    return () => {
-      cancelAnimationFrame(animFrameRef.current);
-    };
-  }, [enabled, playing, danmakus, currentTime, fontSize, speed, getAvailableTrack]);
+    return () => { cancelAnimationFrame(animFrameRef.current); };
+  }, [enabled, playing, danmakus, currentTime, fontSize, speed, blockTop, blockBottom, blockScroll, dedupe, getAvailableTrack]);
 
   if (!enabled) return null;
 
   return (
-    <div
-      ref={containerRef}
-      className="absolute inset-0 pointer-events-none overflow-hidden z-30"
-      style={{ opacity }}
-    >
+    <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden z-30" style={{ opacity }}>
       {floating.map((d) => (
         <span
           key={d.id}
@@ -209,48 +200,35 @@ export default function DanmakuLayer({
             color: d.color,
             top: d.top,
             left: "100%",
-            textShadow:
-              "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
+            textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
             animation: `danmaku-scroll ${d.duration}ms linear`,
             animationFillMode: "forwards",
           }}
-        >
-          {d.text}
-        </span>
+        >{d.text}</span>
       ))}
       {topDanmakus.map((d) => (
         <span
           key={d.id}
           className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center"
           style={{
-            fontSize: d.size,
-            color: d.color,
-            top: d.top,
-            textShadow:
-              "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
+            fontSize: d.size, color: d.color, top: d.top,
+            textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
             animation: `danmaku-top ${d.duration}ms ease-out`,
             animationFillMode: "forwards",
           }}
-        >
-          {d.text}
-        </span>
+        >{d.text}</span>
       ))}
       {bottomDanmakus.map((d) => (
         <span
           key={d.id}
           className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center"
           style={{
-            fontSize: d.size,
-            color: d.color,
-            top: d.top,
-            textShadow:
-              "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
+            fontSize: d.size, color: d.color, top: d.top,
+            textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
             animation: `danmaku-bottom ${d.duration}ms ease-out`,
             animationFillMode: "forwards",
           }}
-        >
-          {d.text}
-        </span>
+        >{d.text}</span>
       ))}
       <style jsx>{`
         @keyframes danmaku-scroll {

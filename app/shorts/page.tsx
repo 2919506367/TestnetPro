@@ -75,6 +75,7 @@ function ShortsApp() {
   const [showDanmaku, setShowDanmaku] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [rightPanelAnimating, setRightPanelAnimating] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
@@ -232,6 +233,7 @@ function ShortsApp() {
           muted={muted}
           forceProxy={forceProxy}
           qn={qn}
+          playbackRate={playbackRate}
           onRetry={(idx) => retryMap.current.set(idx, (retryMap.current.get(idx) || 0) + 1)}
         />
       )}
@@ -382,8 +384,8 @@ function VideoCard({ video, isActive, isNearby }: {
 
 /* ============ Player Overlay (single video element) ============ */
 
-function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
-  video: VideoItem; index: number; muted: boolean; forceProxy: boolean; qn: number;
+function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRetry }: {
+  video: VideoItem; index: number; muted: boolean; forceProxy: boolean; qn: number; playbackRate: number;
   onRetry: (idx: number) => void;
 }) {
   const [resolved, setResolved] = useState<ResolvedVideo | null>(null);
@@ -393,10 +395,13 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
   const [buffered, setBuffered] = useState(0);
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
   const [loadedBytes, setLoadedBytes] = useState(0);
+  const [localSpeed, setLocalSpeed] = useState(playbackRate);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const lastLoadedRef = useRef(0);
   const lastTimeRef = useRef(Date.now());
+
+  const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   useEffect(() => {
     setResolved(null);
@@ -443,6 +448,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     if (!v || !resolved) return;
 
     v.src = resolved.videoUrl;
+    v.playbackRate = localSpeed;
     v.load();
     v.muted = muted || resolved.format === "dash";
 
@@ -511,6 +517,10 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
     if (v && resolved?.format === "dash") v.muted = muted;
   }, [muted, resolved?.format]);
 
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.playbackRate = localSpeed;
+  }, [localSpeed]);
+
   const seek = (t: number) => {
     if (videoRef.current) videoRef.current.currentTime = t;
   };
@@ -575,9 +585,20 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, onRetry }: {
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
           />
         </div>
-        <div className="flex justify-between text-white/40 text-[9px]">
-          <span>{fmtTime(currentTime)}</span>
-          <span>{fmtTime(duration)}</span>
+        <div className="flex justify-between items-center text-white/40 text-[9px]">
+          <div className="flex items-center gap-2">
+            <span>{fmtTime(currentTime)}</span>
+            <span>/ {fmtTime(duration)}</span>
+            {/* Speed selector */}
+            <div className="relative">
+              <button
+                onClick={(e) => { e.stopPropagation(); setLocalSpeed((s) => { const idx = SPEED_OPTIONS.indexOf(s); return SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length]; }); }}
+                className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[9px] text-white/60"
+              >
+                {localSpeed}x
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

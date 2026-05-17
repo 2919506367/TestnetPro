@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
   }
 
   if (
-    !decodedUrl.startsWith("https://") ||
+    (!decodedUrl.startsWith("https://") && !decodedUrl.startsWith("http://")) ||
     (!decodedUrl.includes("bilibili.com") &&
       !decodedUrl.includes("bilivideo.com") &&
       !decodedUrl.includes("hdslb.com"))
