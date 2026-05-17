@@ -5,11 +5,17 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   Play, Search, X, Loader2,
-  Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff,
+  Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff, Zap,
 } from "lucide-react";
 import { proxyUrl } from "@/lib/bilibili";
 import VideoGrid from "./components/VideoGrid";
 import VideoPlayerModal from "./components/VideoPlayerModal";
+
+const FAST_HOST = process.env.NEXT_PUBLIC_FAST_HOST || "";
+
+function biliBase(fast: boolean): string {
+  return fast && FAST_HOST ? FAST_HOST : "";
+}
 
 interface VideoItem {
   id: string; bvid: string; aid: number; cid: number;
@@ -57,6 +63,16 @@ function BilibiliApp() {
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [globalProxy, setGlobalProxy] = useState(false);
+  const [fastMode, setFastMode] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("bili-fast") !== "0";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("bili-fast", fastMode ? "1" : "0");
+  }, [fastMode]);
+
+  const base = biliBase(fastMode);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,7 +80,7 @@ function BilibiliApp() {
     if (!q.trim()) return;
     setSearchLoading(true);
     try {
-      const res = await fetch(`/api/bili/search?q=${encodeURIComponent(q)}&type=${t}&page=${p}`);
+      const res = await fetch(`${base}/api/bili/search?q=${encodeURIComponent(q)}&type=${t}&page=${p}`);
       const data = await res.json();
       if (append) {
         setSearchResults((prev) => [...prev, ...(data.results || [])]);
@@ -77,7 +93,7 @@ function BilibiliApp() {
     } finally {
       setSearchLoading(false);
     }
-  }, []);
+  }, [base]);
 
   const handleSearch = (val: string) => {
     setSearchQuery(val);
@@ -135,7 +151,6 @@ function BilibiliApp() {
 
   return (
     <div className={`min-h-screen ${bg}`}>
-      {/* Top bar: search + shortcuts */}
       <div className={`${searchBg} border-b ${borderColor} px-4 py-3`}>
         <div className="max-w-3xl mx-auto">
           {showSearch && (
@@ -180,7 +195,19 @@ function BilibiliApp() {
                 搜索
               </button>
             </div>
-            {/* 代理/直连 全局切换 */}
+            {/* 加速模式 */}
+            <button
+              onClick={() => setFastMode(!fastMode)}
+              className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
+                fastMode
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                  : dark ? "bg-white/5 text-white/50 border border-white/10" : "bg-gray-100 text-gray-500 border border-gray-200"
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              {fastMode ? "加速" : "普通"}
+            </button>
+            {/* 代理/直连 */}
             <button
               onClick={() => setGlobalProxy(!globalProxy)}
               className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
@@ -192,7 +219,6 @@ function BilibiliApp() {
               {globalProxy ? <Shield className="w-3.5 h-3.5" /> : <ShieldOff className="w-3.5 h-3.5" />}
               {globalProxy ? "代理" : "直连"}
             </button>
-            {/* 短视频入口 */}
             <button
               onClick={() => router.push("/shorts")}
               className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${
@@ -212,64 +238,45 @@ function BilibiliApp() {
             <button
               onClick={() => { setSearchType("video"); setSearchPage(1); doSearch(searchQuery, "video", 1, false); }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${searchType === "video" ? tabActive : tabInactive}`}
-            >
-              视频
-            </button>
+            >视频</button>
             <button
               onClick={() => { setSearchType("user"); setSearchPage(1); doSearch(searchQuery, "user", 1, false); }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${searchType === "user" ? tabActive : tabInactive}`}
-            >
-              用户
-            </button>
+            >用户</button>
           </div>
 
           {searchLoading && searchResults.length === 0 ? (
-            <div className="flex justify-center py-16">
-              <Loader2 className={`w-6 h-6 animate-spin ${textSecondary}`} />
-            </div>
+            <div className="flex justify-center py-16"><Loader2 className={`w-6 h-6 animate-spin ${textSecondary}`} /></div>
           ) : searchResults.length === 0 ? (
             <p className={`text-center py-16 ${textSecondary}`}>未找到相关内容</p>
           ) : searchType === "video" ? (
             <div className="space-y-3">
               {searchResults.map((item: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => handlePlayFromSearch({
-                    bvid: item.bvid, aid: item.aid, cid: item.cid,
-                    title: item.title, author: item.author,
-                    authorFace: item.authorFace, cover: item.cover,
-                  })}
+                <button key={i}
+                  onClick={() => handlePlayFromSearch({ bvid: item.bvid, aid: item.aid, cid: item.cid, title: item.title, author: item.author, authorFace: item.authorFace, cover: item.cover })}
                   className={`flex gap-3 p-2 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
                   <div className="relative flex-shrink-0 w-44 h-28 sm:w-56 sm:h-32 rounded-lg overflow-hidden bg-gray-700">
                     <img src={proxyUrl(item.cover)} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
-                    <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-                      {item.duration}
-                    </span>
+                    <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">{item.duration}</span>
                   </div>
                   <div className="flex-1 min-w-0 py-1">
                     <h3 className={`${textPrimary} text-sm sm:text-base line-clamp-2 leading-snug font-medium`}>{item.title}</h3>
                     <p className={`${textSecondary} text-xs mt-1.5`}>{item.author} · {item.playCount}播放</p>
-                    {item.description && (
-                      <p className={`${textSecondary} text-xs mt-1 line-clamp-2`}>{item.description}</p>
-                    )}
+                    {item.description && <p className={`${textSecondary} text-xs mt-1 line-clamp-2`}>{item.description}</p>}
                   </div>
                 </button>
               ))}
               {searchHasMore && !searchLoading && (
                 <div className="flex justify-center py-4">
-                  <button onClick={handleLoadMoreSearch}
-                    className={`px-6 py-2 rounded-full text-sm ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
-                  >加载更多</button>
+                  <button onClick={handleLoadMoreSearch} className={`px-6 py-2 rounded-full text-sm ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}>加载更多</button>
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-2">
               {searchResults.map((item: any, i: number) => (
-                <button
-                  key={i}
-                  onClick={() => handleViewUser(item.mid)}
+                <button key={i} onClick={() => handleViewUser(item.mid)}
                   className={`flex gap-3 p-3 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
                   <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0 bg-gray-300" />
@@ -285,34 +292,19 @@ function BilibiliApp() {
         </div>
       ) : (
         <div className="max-w-[1600px] mx-auto">
-          <VideoGrid
-            onPlayVideo={handlePlayFromGrid}
-            refreshTrigger={refreshTrigger}
-            dark={dark}
-          />
-          <VideoGridMore
-            onPlayVideo={handlePlayFromGrid}
-            refreshTrigger={refreshTrigger}
-            dark={dark}
-          />
+          <VideoGrid onPlayVideo={handlePlayFromGrid} refreshTrigger={refreshTrigger} dark={dark} base={base} />
+          <VideoGridMore onPlayVideo={handlePlayFromGrid} refreshTrigger={refreshTrigger} dark={dark} base={base} />
         </div>
       )}
 
       {playingVideo && (
-        <VideoPlayerModal
-          video={playingVideo}
-          onClose={() => setPlayingVideo(null)}
-          dark={dark}
-          forceProxy={globalProxy}
-        />
+        <VideoPlayerModal video={playingVideo} onClose={() => setPlayingVideo(null)} dark={dark} forceProxy={globalProxy} base={base} />
       )}
 
       {showUserProfile && (
-        <UserProfileModal
-          mid={showUserProfile}
-          onClose={() => setShowUserProfile(null)}
+        <UserProfileModal mid={showUserProfile} onClose={() => setShowUserProfile(null)}
           onPlayVideo={(v) => { setPlayingVideo(v); setShowUserProfile(null); }}
-          dark={dark}
+          dark={dark} base={base}
         />
       )}
     </div>
@@ -320,11 +312,12 @@ function BilibiliApp() {
 }
 
 function VideoGridMore({
-  onPlayVideo, refreshTrigger, dark,
+  onPlayVideo, refreshTrigger, dark, base,
 }: {
   onPlayVideo: (video: VideoItem) => void;
   refreshTrigger: number;
   dark: boolean;
+  base: string;
 }) {
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -335,16 +328,15 @@ function VideoGridMore({
     (async () => {
       try {
         const ex = Array.from(seenBvids.current).slice(-50).join(",");
-        const res = await fetch(`/api/bili/feed?seed=${Date.now() + 99999}&size=12&exclude=${ex}`);
+        const res = await fetch(`${base}/api/bili/feed?seed=${Date.now() + 99999}&size=12&exclude=${ex}`);
         const data = await res.json();
         const list: VideoItem[] = data.videos || [];
         list.forEach((v) => seenBvids.current.add(v.id));
         setVideos(list);
       } catch {} finally { setLoading(false); }
     })();
-  }, [refreshTrigger]);
+  }, [refreshTrigger, base]);
 
-  const bg = dark ? "bg-[#141414]" : "bg-[#f4f5f7]";
   const cardBg = dark ? "bg-[#1f1f1f] hover:bg-[#2a2a2a]" : "bg-white hover:bg-gray-50";
   const textPrimary = dark ? "text-white/90" : "text-gray-900";
   const textSecondary = dark ? "text-white/50" : "text-gray-500";
@@ -352,29 +344,20 @@ function VideoGridMore({
   if (loading) return null;
 
   return (
-    <div className={`${bg} p-4 sm:p-6`}>
+    <div className={`p-4 sm:p-6 ${dark ? "bg-[#141414]" : "bg-[#f4f5f7]"}`}>
       <h2 className={`text-lg font-bold ${textPrimary} mb-4`}>更多推荐</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {videos.map((video) => (
-          <div
-            key={video.id}
-            onClick={() => onPlayVideo(video)}
+          <div key={video.id} onClick={() => onPlayVideo(video)}
             className={`${cardBg} rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-sm ${dark ? "shadow-black/20" : "shadow-gray-200/50"} group`}
           >
             <div className="aspect-video relative overflow-hidden">
-              <img
-                src={proxyUrl(video.cover)}
-                alt={video.title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
+              <img src={proxyUrl(video.cover)} alt={video.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                 <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-90 transition-all drop-shadow-lg" />
               </div>
-              <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
-                {video.duration}
-              </span>
+              <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">{video.duration}</span>
             </div>
             <div className="p-3">
               <h3 className={`text-sm font-medium line-clamp-2 mb-1.5 leading-snug ${textPrimary}`}>{video.title}</h3>
@@ -392,9 +375,9 @@ function VideoGridMore({
 }
 
 function UserProfileModal({
-  mid, onClose, onPlayVideo, dark,
+  mid, onClose, onPlayVideo, dark, base,
 }: {
-  mid: number; onClose: () => void; onPlayVideo: (v: PlayVideo) => void; dark: boolean;
+  mid: number; onClose: () => void; onPlayVideo: (v: PlayVideo) => void; dark: boolean; base: string;
 }) {
   const [profile, setProfile] = useState<{ mid: number; name: string; face: string; sign: string; followerCount: string; videoCount: number } | null>(null);
   const [videos, setVideos] = useState<VideoItem[]>([]);
@@ -404,14 +387,14 @@ function UserProfileModal({
     (async () => {
       try {
         const [pRes, vRes] = await Promise.all([
-          fetch(`/api/bili/user/${mid}`),
-          fetch(`/api/bili/user/${mid}/videos`),
+          fetch(`${base}/api/bili/user/${mid}`),
+          fetch(`${base}/api/bili/user/${mid}/videos`),
         ]);
         setProfile(await pRes.json());
         setVideos(((await vRes.json()) as any).videos || []);
       } catch {} finally { setLoading(false); }
     })();
-  }, [mid]);
+  }, [mid, base]);
 
   const overlayBg = dark ? "bg-black/95" : "bg-white/98";
   const textPrimary = dark ? "text-white" : "text-gray-900";
@@ -422,9 +405,7 @@ function UserProfileModal({
   return (
     <div className={`fixed inset-0 z-[80] ${overlayBg} backdrop-blur-sm overflow-y-auto`}>
       <div className="max-w-3xl mx-auto p-4">
-        <button onClick={onClose} className={`mb-4 flex items-center gap-1 text-sm ${closeBtn}`}>
-          ← 返回
-        </button>
+        <button onClick={onClose} className={`mb-4 flex items-center gap-1 text-sm ${closeBtn}`}>← 返回</button>
         {loading ? (
           <div className="flex justify-center py-12">
             <div className={`w-6 h-6 rounded-full border-2 border-t-transparent animate-spin ${dark ? "border-white/20 border-t-white" : "border-gray-300 border-t-gray-600"}`} />
@@ -445,8 +426,7 @@ function UserProfileModal({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {videos.map((v) => (
-                  <button
-                    key={v.id}
+                  <button key={v.id}
                     onClick={() => onPlayVideo({ bvid: v.bvid, aid: v.aid, cid: v.cid, title: v.title, author: v.author, authorFace: v.authorFace, cover: v.cover })}
                     className={`${cardBg} rounded-xl overflow-hidden transition-all text-left w-full`}
                   >

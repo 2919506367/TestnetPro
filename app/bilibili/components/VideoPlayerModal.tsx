@@ -35,12 +35,13 @@ function fmtTime(s: number): string {
 }
 
 export default function VideoPlayerModal({
-  video, onClose, dark, forceProxy,
+  video, onClose, dark, forceProxy, base = "",
 }: {
   video: PlayVideo | null;
   onClose: () => void;
   dark: boolean;
   forceProxy: boolean;
+  base?: string;
 }) {
   const [phase, setPhase] = useState<"resolving" | "buffering" | "playing" | "paused" | "error" | "fallback">("resolving");
   const [resolved, setResolved] = useState<ResolvedPlayData | null>(null);
@@ -81,7 +82,7 @@ export default function VideoPlayerModal({
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/shorts/play?bvid=${video.bvid}&qn=${qn}`);
+        const res = await fetch(`${base}/api/shorts/play?bvid=${video.bvid}&qn=${qn}`);
         const data = await res.json();
         if (cancelled) return;
         if (data.videoUrl) {
