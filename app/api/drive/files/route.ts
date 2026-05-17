@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getUserIdFromCookies } from "@/lib/auth";
 
+const cache = new Map<string, { data: unknown; ts: number }>();
+const CACHE_TTL = 10000;
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.data as T;
+  return null;
+}
+
+function setCache(key: string, data: unknown) {
+  cache.set(key, { data, ts: Date.now() });
+  if (cache.size > 300) {
+    const now = Date.now();
+    for (const [k, v] of cache) {
+      if (now - v.ts > CACHE_TTL * 2) cache.delete(k);
+    }
+  }
+}
+
 export async function GET(request: NextRequest) {
   const userId = await getUserIdFromCookies();
   if (!userId) {
@@ -10,6 +29,10 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const folderIdParam = url.searchParams.get("folderId");
+
+  const cacheKey = `${userId}:${folderIdParam || "root"}`;
+  const cached = getCached<any>(cacheKey);
+  if (cached) return NextResponse.json({ files: cached });
 
   const where: { userId: number; folderId?: number | null } = { userId };
 
@@ -41,6 +64,8 @@ export async function GET(request: NextRequest) {
   });
 
   const result = files.map((f) => ({ ...f, size: Number(f.size) }));
+
+  setCache(cacheKey, result);
 
   return NextResponse.json({ files: result });
 }

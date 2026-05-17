@@ -70,7 +70,7 @@ function DrivePage() {
   const usagePercent = Math.min((totalSize / storageLimit) * 100, 100);
 
   const goldExpiresDisplay = user?.goldExpiresAt
-    ? new Date(user.goldExpiresAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+    ? new Date(user.goldExpiresAt!).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
     : "";
 
   const fetchUser = useCallback(async () => {
@@ -105,7 +105,11 @@ function DrivePage() {
     } finally { setLoading(false); }
   }, [router, parsedFolderId]);
 
-  useEffect(() => { fetchUser(); fetchFolders(); fetchFiles(); }, [fetchUser, fetchFolders, fetchFiles]);
+  useEffect(() => {
+    (async () => {
+      await Promise.all([fetchUser(), fetchFolders(), fetchFiles()]);
+    })();
+  }, [fetchUser, fetchFolders, fetchFiles]);
 
   const handleLogout = async () => { await fetch("/api/auth/logout", { method: "POST" }); router.push("/"); };
   const handleDownload = (file: DriveFile) => { const a = document.createElement("a"); a.href = `/api/drive/download/${file.id}`; a.click(); };
@@ -130,7 +134,7 @@ function DrivePage() {
     } catch { setNewFolderError("网络错误"); }
   };
 
-  if (!user) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/30 dark:from-gray-900 dark:via-gray-900 dark:to-gray-900">
         <div className="w-10 h-10 rounded-full border-[3px] border-blue-200 dark:border-gray-700 border-t-blue-600 animate-spin" />
@@ -240,7 +244,7 @@ function DrivePage() {
               <ThemeToggle />
               {/* Nickname with gold effect */}
               <span className={`text-sm font-semibold hidden sm:inline ${isGold ? "gold-text" : "text-gray-700 dark:text-gray-200"}`}>
-                {user.nickname}
+                {user?.nickname ?? "..."}
               </span>
               {isGold && (
                 <span className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded-full gold-badge text-white font-medium flex items-center gap-0.5">
@@ -252,9 +256,9 @@ function DrivePage() {
                   管理员
                 </span>
               )}
-              <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{user.email}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">{user?.email ?? "..."}</span>
               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-md ${isGold ? "gold-badge" : "bg-gradient-to-br from-blue-500 to-purple-600 shadow-blue-500/20"}`}>
-                {user.nickname.charAt(0).toUpperCase()}
+                {user?.nickname?.charAt(0)?.toUpperCase() || "U"}
               </div>
               <button onClick={handleLogout} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex items-center gap-1">
                 <LogOut className="w-3.5 h-3.5" /> <span className="hidden sm:inline">退出</span>
