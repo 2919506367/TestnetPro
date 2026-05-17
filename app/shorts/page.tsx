@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import {
   Play, Pause, Volume2, VolumeX, RotateCcw, AlertCircle,
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
-  Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge,
+  Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge, Settings2,
 } from "lucide-react";
 import { proxyUrl } from "@/lib/bilibili";
 import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "@/app/bilibili/components/DanmakuLayer";
@@ -69,10 +69,11 @@ function ShortsApp() {
   const [showControls, setShowControls] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [showComments, setShowComments] = useState(false);
-  const [showDanmaku, setShowDanmaku] = useState(false);
+  const [showDanmakuSettings, setShowDanmakuSettings] = useState(false);
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [rightPanelAnimating, setRightPanelAnimating] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
@@ -231,6 +232,8 @@ function ShortsApp() {
           forceProxy={forceProxy}
           qn={qn}
           playbackRate={playbackRate}
+          danmaku={danmaku}
+          onDanmakuChange={setDanmaku}
           onRetry={(idx) => retryMap.current.set(idx, (retryMap.current.get(idx) || 0) + 1)}
         />
       )}
@@ -284,12 +287,50 @@ function ShortsApp() {
                 <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{activeVideo.likeCount}</span>
                 <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{activeVideo.danmakuCount}</span>
                 <span>{activeVideo.duration}</span>
-                <button onClick={() => setShowDanmaku(!showDanmaku)} className={`px-1.5 py-0.5 rounded text-[9px] ${showDanmaku ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"} hover:bg-white/20`}>
-                  弹{showDanmaku ? "✓" : ""}
+                <button onClick={() => setDanmaku((p) => ({ ...p, enabled: !p.enabled }))} className={`px-1.5 py-0.5 rounded text-[9px] ${danmaku.enabled ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"} hover:bg-white/20`}>
+                  弹{danmaku.enabled ? "✓" : ""}
+                </button>
+                <button onClick={() => setShowDanmakuSettings(!showDanmakuSettings)} className={`px-1.5 py-0.5 rounded text-[9px] ${showDanmakuSettings ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"} hover:bg-white/20`}>
+                  <Settings2 className="w-2.5 h-2.5" />
                 </button>
               </div>
               {activeVideo.description && (
                 <p className="text-white/40 text-[11px] leading-relaxed line-clamp-3">{activeVideo.description}</p>
+              )}
+              {showDanmakuSettings && (
+                <div className="mt-3 p-3 bg-black/70 backdrop-blur-sm rounded-xl border border-white/10 space-y-2.5">
+                  <div className="flex items-center gap-2 text-white/60 text-[11px]">
+                    <span className="w-10 flex-shrink-0">透明度</span>
+                    <input type="range" min={10} max={100} value={Math.round(danmaku.opacity * 100)}
+                      onChange={(e) => setDanmaku((p) => ({ ...p, opacity: Number(e.target.value) / 100 }))}
+                      className="flex-1 h-1 accent-pink-500" />
+                    <span className="w-6 text-right text-[10px]">{Math.round(danmaku.opacity * 100)}%</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60 text-[11px]">
+                    <span className="w-10 flex-shrink-0">字号</span>
+                    <input type="range" min={14} max={36} value={danmaku.fontSize}
+                      onChange={(e) => setDanmaku((p) => ({ ...p, fontSize: Number(e.target.value) }))}
+                      className="flex-1 h-1 accent-pink-500" />
+                    <span className="w-6 text-right text-[10px]">{danmaku.fontSize}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-white/60 text-[11px]">
+                    <span className="w-10 flex-shrink-0">速度</span>
+                    <input type="range" min={4000} max={16000} step={500} value={danmaku.speed}
+                      onChange={(e) => setDanmaku((p) => ({ ...p, speed: Number(e.target.value) }))}
+                      className="flex-1 h-1 accent-pink-500" />
+                    <span className="w-10 text-right text-[10px]">{danmaku.speed}ms</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={() => setDanmaku((p) => ({ ...p, blockTop: !p.blockTop }))}
+                      className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockTop ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽顶部</button>
+                    <button onClick={() => setDanmaku((p) => ({ ...p, blockBottom: !p.blockBottom }))}
+                      className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockBottom ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽底部</button>
+                    <button onClick={() => setDanmaku((p) => ({ ...p, blockScroll: !p.blockScroll }))}
+                      className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockScroll ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽滚动</button>
+                    <button onClick={() => setDanmaku((p) => ({ ...p, dedupe: !p.dedupe }))}
+                      className={`px-2.5 py-1 rounded text-[10px] ${danmaku.dedupe ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>{danmaku.dedupe ? "去重:开" : "去重:关"}</button>
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -381,8 +422,9 @@ function VideoCard({ video, isActive, isNearby }: {
 
 /* ============ Player Overlay (single video element) ============ */
 
-function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRetry }: {
+function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danmaku, onDanmakuChange, onRetry }: {
   video: VideoItem; index: number; muted: boolean; forceProxy: boolean; qn: number; playbackRate: number;
+  danmaku: DanmakuSettings; onDanmakuChange: React.Dispatch<React.SetStateAction<DanmakuSettings>>;
   onRetry: (idx: number) => void;
 }) {
   const [resolved, setResolved] = useState<ResolvedVideo | null>(null);
@@ -393,7 +435,6 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
   const [loadPercent, setLoadPercent] = useState(0);
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
   const [localSpeed, setLocalSpeed] = useState(playbackRate);
-  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const lastLoadedRef = useRef(0);
