@@ -167,13 +167,13 @@ export default function VideoPlayerModal({
   const showOverlays = phase === "playing" || phase === "paused" || phase === "buffering";
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black flex">
+    <div className="fixed inset-0 z-[70] bg-black flex relative">
       <button onClick={onClose}
         className="absolute top-4 left-4 z-50 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center">
         <X className="w-4 h-4" />
       </button>
 
-      <div className={`flex-1 relative ${showComments ? "mr-[380px]" : ""} transition-all duration-300`}>
+      <div className="flex-1 relative">
         <div className="absolute inset-0 bg-black flex items-center justify-center">
           {phase === "resolving" && (
             <div className="flex flex-col items-center gap-3">
