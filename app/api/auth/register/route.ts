@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { hashPassword, createToken, setAuthCookie } from "@/lib/auth";
+import { verifyCaptcha } from "@/lib/captcha";
+import { verifyEmailCode } from "@/lib/verification";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password, nickname } = await request.json();
+    const { email, password, nickname, captchaInput, emailCode } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "邮箱和密码不能为空" }, { status: 400 });
@@ -22,6 +24,21 @@ export async function POST(request: NextRequest) {
     const trimmedNickname = (nickname || "").trim();
     if (!trimmedNickname || trimmedNickname.length < 1 || trimmedNickname.length > 20) {
       return NextResponse.json({ error: "昵称需要1-20个字符" }, { status: 400 });
+    }
+
+    const captchaToken = request.cookies.get("captcha_token")?.value;
+    if (!captchaToken || !captchaInput) {
+      return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
+    }
+    if (!verifyCaptcha(captchaToken, captchaInput)) {
+      return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
+    }
+
+    if (!emailCode || emailCode.length !== 6) {
+      return NextResponse.json({ error: "请输入邮箱验证码" }, { status: 400 });
+    }
+    if (!verifyEmailCode(email, emailCode)) {
+      return NextResponse.json({ error: "邮箱验证码错误或已失效" }, { status: 400 });
     }
 
     const existingEmail = await prisma.user.findUnique({ where: { email } });

@@ -1,13 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPassword, createToken, setAuthCookie } from "@/lib/auth";
+import { verifyCaptcha } from "@/lib/captcha";
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json();
+    const { email, password, captchaInput } = await request.json();
 
     if (!email || !password) {
       return NextResponse.json({ error: "邮箱和密码不能为空" }, { status: 400 });
+    }
+
+    const captchaToken = request.cookies.get("captcha_token")?.value;
+    if (!captchaToken || !captchaInput) {
+      return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
+    }
+    if (!verifyCaptcha(captchaToken, captchaInput)) {
+      return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
