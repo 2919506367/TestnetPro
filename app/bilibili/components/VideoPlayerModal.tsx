@@ -20,6 +20,7 @@ interface ResolvedPlayData {
   backupUrl: string | null; proxyBackupUrl: string | null;
   format: "durl" | "dash"; usingProxy: boolean;
   qn: number; qnLabel: string;
+  cid: number;
 }
 
 const QN_MAP: Record<number, string> = { 6: "240P", 16: "360P", 32: "480P", 64: "720P", 80: "1080P" };
@@ -92,6 +93,7 @@ export default function VideoPlayerModal({
             backupUrl: data.backupUrl || null, proxyBackupUrl: data.proxyBackupUrl || null,
             format: data.format || "durl", usingProxy: proxyMode,
             qn: data.qn || qn, qnLabel: data.qnLabel || QN_MAP[qn] || `${qn}P`,
+            cid: Number(data.cid || video.cid || 0),
           });
           setPhase("buffering");
         } else if (data.fallback) { setPhase("fallback"); }
@@ -284,7 +286,7 @@ export default function VideoPlayerModal({
 
         {/* Danmaku */}
         {danmaku.enabled && resolved && (phase === "playing" || phase === "paused") && (
-          <DanmakuLayer cid={video.cid} currentTime={currentTime} playing={phase === "playing"} settings={danmaku} />
+          <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={phase === "playing"} settings={danmaku} />
         )}
 
         {/* Top info bar */}

@@ -210,13 +210,13 @@ function BilibiliApp() {
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex gap-2 mb-4">
             <button
-              onClick={() => setSearchType("video")}
+              onClick={() => { setSearchType("video"); setSearchPage(1); doSearch(searchQuery, "video", 1, false); }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${searchType === "video" ? tabActive : tabInactive}`}
             >
               视频
             </button>
             <button
-              onClick={() => setSearchType("user")}
+              onClick={() => { setSearchType("user"); setSearchPage(1); doSearch(searchQuery, "user", 1, false); }}
               className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${searchType === "user" ? tabActive : tabInactive}`}
             >
               用户
