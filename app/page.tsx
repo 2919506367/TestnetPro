@@ -34,6 +34,7 @@ function HomeContent() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "操作失败"); return; }
+      sessionStorage.setItem("authUser", JSON.stringify(data));
       router.push("/drive");
     } catch { setError("网络错误，请稍后重试"); }
     finally { setLoading(false); }

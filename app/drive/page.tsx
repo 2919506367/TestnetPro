@@ -74,6 +74,13 @@ function DrivePage() {
     : "";
 
   const fetchUser = useCallback(async () => {
+    const cached = typeof window !== "undefined" ? sessionStorage.getItem("authUser") : null;
+    if (cached) {
+      try {
+        const userData = JSON.parse(cached) as UserInfo;
+        if (userData.id) { setUser(userData); return; }
+      } catch {}
+    }
     const res = await fetch("/api/auth/me");
     const data = await res.json();
     if (!data.user) { router.push("/"); return; }
