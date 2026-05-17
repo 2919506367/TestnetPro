@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       const users = rawResults.map((u: Record<string, unknown>) => ({
         mid: Number(u.mid || 0),
         name: String(u.uname || u.author || ""),
-        face: String(u.upic || u.face || ""),
+        face: fixUrl(String(u.upic || u.face || "")),
         sign: String(u.usign || "").substring(0, 80),
         followerCount: formatNum(Number(u.fans || 0)),
         videoCount: Number(u.videos || 0),
