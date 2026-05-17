@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
 import { biliFetch, mapVideo, shuffleArray } from "@/lib/bilibili";
 
-const SOURCES = [
-  { path: "/x/web-interface/popular", name: "hot", maxPages: 10 },
-  { path: "/x/web-interface/ranking/v2", name: "rank", maxPages: 1 },
-];
+const REGION_IDS = [1, 3, 4, 5, 36, 119, 129, 155, 160, 165, 181, 188];
+
+function pickSource(seed: number) {
+  const pool = [
+    // Random hot videos: rotate pages 1-10 of popular
+    () => ({
+      path: `/x/web-interface/popular?pn=${(seed * 3 + 1) % 10 + 1}&ps=50`,
+      name: "hot",
+    }),
+    // Random v2 hot videos
+    () => ({
+      path: `/x/web-interface/popular?pn=${(seed * 5 + 7) % 10 + 1}&ps=50`,
+      name: "hot_v2",
+    }),
+    // Random category videos: rotate region IDs for variety
+    () => {
+      const rid = REGION_IDS[seed % REGION_IDS.length];
+      return {
+        path: `/x/web-interface/dynamic/region?rid=${rid}&pn=1&ps=50`,
+        name: `region_${rid}`,
+      };
+    },
+  ];
+  const fn = pool[seed % pool.length];
+  return fn();
+}
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -13,14 +35,9 @@ export async function GET(request: NextRequest) {
   const size = Math.min(8, Math.max(3, parseInt(url.searchParams.get("size") || "5", 10)));
 
   try {
-    const src = SOURCES[seed % SOURCES.length];
-    const page = (seed * 7 + 1) % src.maxPages + 1;
-    const ps = src.name === "rank" ? 10 : 50;
+    const src = pickSource(seed);
 
-    const data = await biliFetch(
-      `${src.path}?pn=${page}&ps=${ps}`,
-      "https://www.bilibili.com"
-    );
+    const data = await biliFetch(src.path, "https://www.bilibili.com");
 
     if (!data || data.code !== 0) {
       return NextResponse.json({ videos: [], source: "error", nextSeed: seed + 1 });
@@ -38,7 +55,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       videos: result,
-      source: `bilibili_${src.name}_p${page}`,
+      source: `bili_${src.name}`,
       seed,
       nextSeed: seed + 1,
       hasMore: result.length >= size,
