@@ -53,6 +53,7 @@ export default function VideoPlayerModal({
   const [useProxy, setUseProxy] = useState(forceProxy);
   const [retryCount, setRetryCount] = useState(0);
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
+  const [loadPercent, setLoadPercent] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
   const [showDanmakuSettings, setShowDanmakuSettings] = useState(false);
@@ -74,7 +75,7 @@ export default function VideoPlayerModal({
   useEffect(() => {
     if (!video) return;
     setPhase("resolving"); setResolved(null);
-    setCurrentTime(0); setDuration(0); setBuffered(0); setLoadSpeedKbps(0);
+    setCurrentTime(0); setDuration(0); setBuffered(0); setLoadSpeedKbps(0); setLoadPercent(0);
     setUseProxy(forceProxy);
     if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
 
@@ -117,6 +118,7 @@ export default function VideoPlayerModal({
       setPhase("playing");
       if (speedTimer) clearInterval(speedTimer);
       setLoadSpeedKbps(0);
+      setLoadPercent(0);
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
       scheduleHideControls();
     };
@@ -130,7 +132,13 @@ export default function VideoPlayerModal({
       } else { setPhase("error"); }
     };
     const onTime = () => { setCurrentTime(v.currentTime); setDuration(v.duration || 0); };
-    const onProgress = () => { if (v.buffered.length > 0) setBuffered(v.buffered.end(v.buffered.length - 1)); };
+    const onProgress = () => {
+      if (v.buffered.length > 0) {
+        const end = v.buffered.end(v.buffered.length - 1);
+        setBuffered(end);
+        if (v.duration > 0) setLoadPercent(Math.min(Math.round((end / v.duration) * 100), 100));
+      }
+    };
     const onLoaded = () => { v.play().catch(() => {}); };
 
     speedTimer = setInterval(() => {
@@ -228,10 +236,21 @@ export default function VideoPlayerModal({
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20 pointer-events-none">
             <div className="w-12 h-12 rounded-full border-3 border-white/20 border-t-white animate-spin" />
             <p className="text-white/50 text-xs mt-3">缓冲中...</p>
-            {loadSpeedKbps > 0 && (
-              <p className="text-white/30 text-[10px] mt-1">
-                {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)} Mbps` : `${loadSpeedKbps} Kbps`}
-              </p>
+            {loadPercent > 0 && (
+              <div className="mt-3 w-64 max-w-[80vw]">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-white/40 text-[10px]">已缓存 {loadPercent}%</span>
+                  {loadSpeedKbps > 0 && (
+                    <span className="text-white/40 text-[10px]">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
+                  )}
+                </div>
+                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-300"
+                    style={{ width: `${loadPercent}%` }}
+                  />
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -305,7 +324,7 @@ export default function VideoPlayerModal({
           <div className={`absolute bottom-0 left-0 right-0 z-20 p-5 bg-gradient-to-t from-black/60 to-transparent transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
             {loadSpeedKbps > 0 && phase === "buffering" && (
               <div className="flex justify-end mb-2">
-                <span className="text-white/40 text-[10px] bg-black/40 px-2 py-0.5 rounded-full">{loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)}Mbps` : `${loadSpeedKbps}Kbps`}</span>
+                <span className="text-white/40 text-[10px] bg-black/40 px-2 py-0.5 rounded-full">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
               </div>
             )}
             <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-2">
