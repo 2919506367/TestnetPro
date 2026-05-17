@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import bcrypt from "bcryptjs";
 
 const JWT_SECRET = new TextEncoder().encode(
@@ -40,9 +40,11 @@ export async function verifyToken(token: string): Promise<number | null> {
 
 export async function setAuthCookie(token: string): Promise<void> {
   const cookieStore = await cookies();
+  const heads = await headers();
+  const isSecure = heads.get("x-forwarded-proto") === "https";
   cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
-    secure: false,
+    secure: isSecure,
     path: "/",
     maxAge: 60 * 60 * 24 * 7,
   });
