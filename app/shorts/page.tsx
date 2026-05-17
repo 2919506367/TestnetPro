@@ -459,6 +459,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
       setLoadPercent(0);
     };
     const onPause = () => setStatus("paused");
+    const onWaiting = () => setStatus("loading");
     const onError = () => {
       onRetry(index);
       if (resolved.proxyVideoUrl && !resolved.usingProxy) {
@@ -496,6 +497,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
 
     v.addEventListener("playing", onPlaying);
     v.addEventListener("pause", onPause);
+    v.addEventListener("waiting", onWaiting);
     v.addEventListener("error", onError);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("progress", onProgress);
@@ -504,6 +506,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
     return () => {
       v.removeEventListener("playing", onPlaying);
       v.removeEventListener("pause", onPause);
+      v.removeEventListener("waiting", onWaiting);
       v.removeEventListener("error", onError);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("progress", onProgress);
@@ -611,19 +614,17 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
             <p className="text-white/60 text-xs">缓冲中...</p>
-            {loadPercent > 0 && (
-              <div className="w-64 max-w-[80vw]">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-white/40 text-[10px]">已缓存 {loadPercent}%</span>
-                  {loadSpeedKbps > 0 && (
-                    <span className="text-white/40 text-[10px]">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
-                  )}
-                </div>
-                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-300" style={{ width: `${loadPercent}%` }} />
-                </div>
+            <div className="w-64 max-w-[80vw]">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-white/40 text-[10px]">{loadPercent > 0 ? `已缓存 ${loadPercent}%` : "正在连接..."}</span>
+                {loadSpeedKbps > 0 && (
+                  <span className="text-white/40 text-[10px]">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
+                )}
               </div>
-            )}
+              <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-300" style={{ width: `${loadPercent || 1}%` }} />
+              </div>
+            </div>
           </div>
         </div>
       )}
