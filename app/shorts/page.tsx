@@ -4,8 +4,11 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import {
   Play, Pause, Volume2, VolumeX, RotateCcw, AlertCircle,
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
-  Search, X, User, RefreshCw, ChevronRight, ChevronLeft,
+  Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge,
 } from "lucide-react";
+import { proxyUrl } from "@/lib/bilibili";
+import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "@/app/bilibili/components/DanmakuLayer";
+import CommentSection from "@/app/bilibili/components/CommentSection";
 
 /* ============ Types ============ */
 
@@ -28,12 +31,6 @@ interface ResolvedVideo extends VideoItem {
 interface UserProfile {
   mid: number; name: string; face: string; sign: string;
   followerCount: string; videoCount: number;
-}
-
-interface CommentItem {
-  rpid: number; content: string; author: string;
-  authorMid: number; authorFace: string;
-  likeCount: number; replyCount: number; createdAt: number;
 }
 
 interface SearchResult { results: any[]; source: string; type: string; }
@@ -66,7 +63,7 @@ function ShortsApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [muted, setMuted] = useState(false);
-  const [forceProxy, setForceProxy] = useState(false);
+  const [forceProxy, setForceProxy] = useState(true);
   const [qn, setQn] = useState(DEFAULT_QN);
   const [seed, setSeed] = useState(Date.now());
   const [showControls, setShowControls] = useState(true);
@@ -278,7 +275,7 @@ function ShortsApp() {
               <h2 className="text-white text-sm font-semibold leading-snug mb-2">{activeVideo.title}</h2>
               <button onClick={() => { setShowUserProfile(true); closeComments(); }} className="flex items-center gap-2 mb-3 hover:bg-white/5 rounded-lg p-1.5 -ml-1.5 transition-all w-full text-left">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
-                  {activeVideo.authorFace ? <img src={activeVideo.authorFace} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-2 text-white/40" />}
+                  {activeVideo.authorFace ? <img src={proxyUrl(activeVideo.authorFace)} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-2 text-white/40" />}
                 </div>
                 <span className="text-white/80 text-xs font-medium hover:text-white">{activeVideo.author}</span>
               </button>
@@ -300,7 +297,7 @@ function ShortsApp() {
           {/* Comments section */}
           {activeVideo && (
             <div className="flex-1 overflow-y-auto">
-              <CommentList aid={activeVideo.aid} />
+              <CommentSection aid={activeVideo.aid} dark={true} />
             </div>
           )}
         </div>
@@ -367,7 +364,7 @@ function VideoCard({ video, isActive, isNearby }: {
         <div className="absolute inset-0 bg-black" />
       ) : (
         <>
-          <img src={video.cover} alt={video.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+          <img src={proxyUrl(video.cover)} alt={video.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
           <div className="absolute inset-0 bg-black/40" />
           <div className="absolute inset-0 flex items-center justify-center">
             <Play className="w-12 h-12 text-white/70" />
@@ -393,9 +390,10 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [buffered, setBuffered] = useState(0);
+  const [loadPercent, setLoadPercent] = useState(0);
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
-  const [loadedBytes, setLoadedBytes] = useState(0);
   const [localSpeed, setLocalSpeed] = useState(playbackRate);
+  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const lastLoadedRef = useRef(0);
@@ -409,8 +407,8 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
     setCurrentTime(0);
     setDuration(0);
     setBuffered(0);
+    setLoadPercent(0);
     setLoadSpeedKbps(0);
-    setLoadedBytes(0);
     lastLoadedRef.current = 0;
     lastTimeRef.current = Date.now();
 
@@ -458,6 +456,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
       setStatus("playing");
       if (speedTimer) clearInterval(speedTimer);
       setLoadSpeedKbps(0);
+      setLoadPercent(0);
     };
     const onPause = () => setStatus("paused");
     const onError = () => {
@@ -475,6 +474,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
       if (v.buffered.length > 0) {
         const end = v.buffered.end(v.buffered.length - 1);
         setBuffered(end);
+        if (v.duration > 0) setLoadPercent(Math.min(Math.round((end / v.duration) * 100), 100));
       }
     };
 
@@ -492,14 +492,14 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
       }
     }, 500);
 
-    const onLoaded = () => { v.play().catch(() => {}); };
+    const onCanPlay = () => { v.play().catch(() => {}); };
 
     v.addEventListener("playing", onPlaying);
     v.addEventListener("pause", onPause);
     v.addEventListener("error", onError);
     v.addEventListener("timeupdate", onTime);
     v.addEventListener("progress", onProgress);
-    v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("canplay", onCanPlay);
 
     return () => {
       v.removeEventListener("playing", onPlaying);
@@ -507,7 +507,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
       v.removeEventListener("error", onError);
       v.removeEventListener("timeupdate", onTime);
       v.removeEventListener("progress", onProgress);
-      v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("canplay", onCanPlay);
       if (speedTimer) clearInterval(speedTimer);
     };
   }, [resolved?.videoUrl, muted]);
@@ -542,7 +542,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
   if (!resolved) {
     return (
       <div className="fixed inset-0 z-40 pointer-events-none">
-        <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+        <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
@@ -558,7 +558,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
         ref={videoRef}
         crossOrigin="anonymous"
         className="absolute inset-0 w-full h-full object-contain pointer-events-auto"
-        playsInline loop preload="auto" poster={video.cover}
+        playsInline loop preload="auto" poster={proxyUrl(video.cover)}
         onClick={togglePlay}
         onTimeUpdate={resolved.format === "dash" ? syncAudio : undefined}
       />
@@ -566,14 +566,16 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
         <audio ref={audioRef} crossOrigin="anonymous" src={resolved.audioUrl} preload="auto" loop />
       )}
 
-      {/* Progress bar - moved down to bottom */}
+      {/* Danmaku */}
+      {danmaku.enabled && status === "playing" && (
+        <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={status === "playing"} settings={danmaku} />
+      )}
+
+      {/* Progress bar */}
       <div className="absolute bottom-8 left-4 right-4 z-50 pointer-events-auto">
-        {/* Speed indicator during loading */}
-        {loadSpeedKbps > 0 && (
-          <div className="flex justify-center mb-1">
-            <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">
-              {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)}Mbps` : `${loadSpeedKbps}Kbps`}
-            </span>
+        {loadSpeedKbps > 0 && status === "loading" && (
+          <div className="flex justify-end mb-1">
+            <span className="text-white/40 text-[9px] bg-black/40 px-2 py-0.5 rounded-full">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
           </div>
         )}
         <div className="relative h-1 bg-white/20 rounded-full group hover:h-2 transition-all mb-0.5">
@@ -589,31 +591,38 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
           <div className="flex items-center gap-2">
             <span>{fmtTime(currentTime)}</span>
             <span>/ {fmtTime(duration)}</span>
-            {/* Speed selector */}
             <div className="relative">
               <button
                 onClick={(e) => { e.stopPropagation(); setLocalSpeed((s) => { const idx = SPEED_OPTIONS.indexOf(s); return SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length]; }); }}
-                className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[9px] text-white/60"
+                className="bg-white/10 hover:bg-white/20 px-1.5 py-0.5 rounded text-[9px] text-white/60 flex items-center gap-0.5"
               >
-                {localSpeed}x
+                <Gauge className="w-3 h-3" /> {localSpeed}x
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Loading overlay with speed */}
+      {/* Loading overlay with progress bar */}
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <img src={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+          <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-black/40" />
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
             <p className="text-white/60 text-xs">缓冲中...</p>
-            {loadSpeedKbps > 0 && (
-              <p className="text-white/40 text-[10px]">
-                {loadSpeedKbps > 1000 ? `${(loadSpeedKbps / 1000).toFixed(1)} Mbps` : `${loadSpeedKbps} Kbps`}
-              </p>
+            {loadPercent > 0 && (
+              <div className="w-64 max-w-[80vw]">
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-white/40 text-[10px]">已缓存 {loadPercent}%</span>
+                  {loadSpeedKbps > 0 && (
+                    <span className="text-white/40 text-[10px]">{(loadSpeedKbps / 8000).toFixed(1)} MB/s</span>
+                  )}
+                </div>
+                <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-pink-500 to-rose-400 rounded-full transition-all duration-300" style={{ width: `${loadPercent}%` }} />
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -629,67 +638,6 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, onRe
           </a>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ============ Comment List (embedded in right panel) ============ */
-
-function CommentList({ aid }: { aid: number }) {
-  const [comments, setComments] = useState<CommentItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [source, setSource] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`/api/bili/comments?aid=${aid}`);
-        const data = await res.json();
-        setComments(data.comments || []);
-        setSource(data.source || "");
-      } catch {
-        setSource("error");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [aid]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <div className="w-5 h-5 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-      </div>
-    );
-  }
-
-  if (source === "unavailable" || source === "error") {
-    return <p className="text-white/40 text-xs text-center py-12">评论数据暂不可用</p>;
-  }
-
-  if (comments.length === 0) {
-    return <p className="text-white/40 text-xs text-center py-12">暂无评论</p>;
-  }
-
-  return (
-    <div className="px-4 pb-4">
-      <h3 className="text-white/60 text-[10px] font-medium uppercase tracking-wider mb-3 sticky top-0 bg-black/80 backdrop-blur-sm py-2">热门评论 · {comments.length}条</h3>
-      {comments.map((c) => (
-        <div key={c.rpid} className="flex gap-2.5 py-2.5 border-b border-white/5">
-          <img src={c.authorFace} alt="" className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5" />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="text-white/80 text-[11px] font-medium">{c.author}</span>
-              <span className="text-white/30 text-[9px]">{timeAgo(c.createdAt)}</span>
-            </div>
-            <p className="text-white/65 text-xs leading-relaxed">{c.content}</p>
-            <div className="flex items-center gap-3 mt-1">
-              <span className="text-white/25 text-[9px] flex items-center gap-0.5"><Heart className="w-2 h-2" />{c.likeCount}</span>
-              {c.replyCount > 0 && <span className="text-white/25 text-[9px]">{c.replyCount}条回复</span>}
-            </div>
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
@@ -751,7 +699,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
                 <a key={i} href={`https://www.bilibili.com/video/${item.bvid}`} target="_blank" rel="noopener noreferrer" onClick={() => onSelectVideo(item.bvid)}
                   className="flex gap-3 p-2 rounded-xl hover:bg-white/5 transition-all"
                 >
-                  <img src={item.cover} alt="" className="w-28 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
+                  <img src={proxyUrl(item.cover)} alt="" className="w-28 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white/90 text-sm line-clamp-2 mb-1">{item.title}</h3>
                     <p className="text-white/40 text-xs">{item.author} · {item.playCount}播放 · {item.duration}</p>
@@ -761,7 +709,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
                 <button key={i} onClick={() => onSelectUser(item.mid)}
                   className="flex gap-3 p-2 rounded-xl hover:bg-white/5 transition-all w-full text-left"
                 >
-                  <img src={item.face} alt="" className="w-12 h-12 rounded-full flex-shrink-0" />
+                  <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0" />
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white/90 text-sm">{item.name}</h3>
                     <p className="text-white/40 text-xs">{item.followerCount}粉丝 · {item.videoCount}视频</p>
@@ -809,7 +757,7 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
         ) : profile ? (
           <>
             <div className="flex items-center gap-4 mb-4">
-              <img src={profile.face} alt="" className="w-16 h-16 rounded-full" />
+              <img src={proxyUrl(profile.face)} alt="" className="w-16 h-16 rounded-full" />
               <div>
                 <h2 className="text-white text-lg font-semibold">{profile.name}</h2>
                 <p className="text-white/50 text-xs mt-1">{profile.followerCount}粉丝 · {profile.videoCount}视频</p>
@@ -823,7 +771,7 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
               <div className="grid grid-cols-2 gap-2">
                 {videos.map((v) => (
                   <a key={v.id} href={`https://www.bilibili.com/video/${v.bvid}`} target="_blank" rel="noopener noreferrer" onClick={onSelectVideo} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all">
-                    <img src={v.cover} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" />
+                    <img src={proxyUrl(v.cover)} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" />
                     <div className="p-2">
                       <h4 className="text-white/80 text-xs line-clamp-2 mb-1">{v.title}</h4>
                       <p className="text-white/30 text-[10px]">{v.playCount}播放 · {v.duration}</p>

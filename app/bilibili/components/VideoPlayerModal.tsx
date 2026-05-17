@@ -139,7 +139,7 @@ export default function VideoPlayerModal({
         if (v.duration > 0) setLoadPercent(Math.min(Math.round((end / v.duration) * 100), 100));
       }
     };
-    const onLoaded = () => { v.play().catch(() => {}); };
+    const onCanPlay = () => { v.play().catch(() => {}); };
 
     speedTimer = setInterval(() => {
       if (!v.buffered.length) return;
@@ -161,11 +161,11 @@ export default function VideoPlayerModal({
 
     v.addEventListener("playing", onPlaying); v.addEventListener("pause", onPause);
     v.addEventListener("error", onError); v.addEventListener("timeupdate", onTime);
-    v.addEventListener("progress", onProgress); v.addEventListener("loadedmetadata", onLoaded);
+    v.addEventListener("progress", onProgress); v.addEventListener("canplay", onCanPlay);
     return () => {
       v.removeEventListener("playing", onPlaying); v.removeEventListener("pause", onPause);
       v.removeEventListener("error", onError); v.removeEventListener("timeupdate", onTime);
-      v.removeEventListener("progress", onProgress); v.removeEventListener("loadedmetadata", onLoaded);
+      v.removeEventListener("progress", onProgress); v.removeEventListener("canplay", onCanPlay);
       if (speedTimer) clearInterval(speedTimer);
       if (loadTimeoutRef.current) clearTimeout(loadTimeoutRef.current);
       if (hideControlsTimer.current) clearTimeout(hideControlsTimer.current);

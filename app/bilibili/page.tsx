@@ -56,7 +56,7 @@ function BilibiliApp() {
   const [searchPage, setSearchPage] = useState(1);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [globalProxy, setGlobalProxy] = useState(false);
+  const [globalProxy, setGlobalProxy] = useState(true);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
