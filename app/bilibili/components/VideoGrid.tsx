@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Play, RefreshCw, Eye, Heart, MessageCircle, Clock } from "lucide-react";
-import { proxyUrl } from "@/lib/bilibili";
+import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 
 interface VideoItem {
   id: string; bvid: string; aid: number; cid: number;
@@ -157,6 +157,11 @@ export default function VideoGrid({
                   )}
                 </div>
                 <span className={`text-[11px] ${textSecondary} truncate`}>{video.author}</span>
+                {video.pubdate > 0 && (
+                  <span className={`text-[10px] ${textSecondary} flex-shrink-0 flex items-center gap-0.5`}>
+                    <Clock className="w-2.5 h-2.5" /> {formatPubdate(video.pubdate)}
+                  </span>
+                )}
               </div>
             </div>
           </div>

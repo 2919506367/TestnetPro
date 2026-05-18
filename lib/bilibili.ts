@@ -34,6 +34,22 @@ export function formatDuration(sec: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+export function formatPubdate(ts: number): string {
+  if (!ts) return "";
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffSec = Math.floor(diffMs / 1000);
+  if (diffSec < 60) return "刚刚";
+  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}分钟前`;
+  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}小时前`;
+  if (diffSec < 2592000) return `${Math.floor(diffSec / 86400)}天前`;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function proxyUrl(rawUrl: string): string {
   return `/api/bili-proxy?url=${encodeURIComponent(rawUrl)}`;
 }

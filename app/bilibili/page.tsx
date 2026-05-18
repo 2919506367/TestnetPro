@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
   Play, Search, X, Loader2,
-  Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff,
+  Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff, Clock,
 } from "lucide-react";
-import { proxyUrl } from "@/lib/bilibili";
+import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 import VideoGrid from "./components/VideoGrid";
 import VideoPlayerModal from "./components/VideoPlayerModal";
 
@@ -244,7 +244,7 @@ function BilibiliApp() {
                   </div>
                   <div className="flex-1 min-w-0 py-1">
                     <h3 className={`${textPrimary} text-sm sm:text-base line-clamp-2 leading-snug font-medium`}>{item.title}</h3>
-                    <p className={`${textSecondary} text-xs mt-1.5`}>{item.author} · {item.playCount}播放</p>
+                    <p className={`${textSecondary} text-xs mt-1.5`}>{item.author} · {item.playCount}播放{item.pubdate > 0 ? ` · ${formatPubdate(item.pubdate)}` : ""}</p>
                     {item.description && (
                       <p className={`${textSecondary} text-xs mt-1 line-clamp-2`}>{item.description}</p>
                     )}

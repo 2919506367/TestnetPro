@@ -4,9 +4,9 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import {
   Play, Pause, Volume2, VolumeX, RotateCcw, AlertCircle,
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
-  Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge, Settings2,
+  Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge, Settings2, Clock,
 } from "lucide-react";
-import { proxyUrl } from "@/lib/bilibili";
+import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "@/app/bilibili/components/DanmakuLayer";
 import CommentSection from "@/app/bilibili/components/CommentSection";
 
@@ -287,6 +287,9 @@ function ShortsApp() {
                 <span className="flex items-center gap-0.5"><Heart className="w-3 h-3" />{activeVideo.likeCount}</span>
                 <span className="flex items-center gap-0.5"><MessageCircle className="w-3 h-3" />{activeVideo.danmakuCount}</span>
                 <span>{activeVideo.duration}</span>
+                {activeVideo.pubdate > 0 && (
+                  <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{formatPubdate(activeVideo.pubdate)}</span>
+                )}
                 <button onClick={() => setDanmaku((p) => ({ ...p, enabled: !p.enabled }))} className={`px-1.5 py-0.5 rounded text-[9px] ${danmaku.enabled ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40"} hover:bg-white/20`}>
                   弹{danmaku.enabled ? "✓" : ""}
                 </button>
