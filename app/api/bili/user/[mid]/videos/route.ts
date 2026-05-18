@@ -14,7 +14,7 @@ export async function GET(
 
   try {
     const data = await biliFetch(
-      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=${size}&pn=${page}&order=pubtime`,
+      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=50&pn=1&order=pubtime`,
       `https://space.bilibili.com/${mid}`
     );
 
@@ -23,8 +23,7 @@ export async function GET(
     }
 
     const rawList: Record<string, unknown>[] = data.data?.media_list || [];
-    const total = Number(data.data?.total || data.data?.info?.total || 0);
-    const hasMoreRaw = data.data?.has_more !== undefined ? Boolean(data.data.has_more) : (page * size < total);
+    const rawTotal = Number(data.data?.total || data.data?.info?.total || rawList.length);
 
     const videos = rawList.map((v: Record<string, unknown>) => {
       const upper = (v.upper || {}) as Record<string, unknown>;
@@ -53,27 +52,30 @@ export async function GET(
         durationSec,
         description: String(v.intro || "").substring(0, 120),
         pubdate: Number(v.pubtime || v.ctime || 0),
-        _playCountRaw: Number(cnt.play || 0),
+        _pc: Number(cnt.play || 0),
       };
     });
 
     let filtered = videos;
     if (search) {
       const q = search.toLowerCase();
-      filtered = videos.filter((v: { title: string }) => v.title.toLowerCase().includes(q));
+      filtered = filtered.filter((v: { title: string }) => v.title.toLowerCase().includes(q));
     }
 
     if (sort === "click") {
-      filtered.sort((a, b) => ((b as any)._playCountRaw || 0) - ((a as any)._playCountRaw || 0));
+      filtered.sort((a, b) => ((b as any)._pc || 0) - ((a as any)._pc || 0));
     }
 
-    const clean = filtered.map(({ _playCountRaw, ...rest }: any) => rest);
+    const clean = filtered.map(({ _pc, ...rest }: any) => rest);
+    const total = search ? clean.length : rawTotal;
+    const start = (page - 1) * size;
+    const paged = clean.slice(start, start + size);
 
     return NextResponse.json({
-      videos: clean,
+      videos: paged,
       page,
-      hasMore: hasMoreRaw && search === "",
-      total: search ? clean.length : total,
+      hasMore: start + size < clean.length,
+      total,
     });
   } catch {
     return NextResponse.json({ videos: [], page, hasMore: false, total: 0 });
