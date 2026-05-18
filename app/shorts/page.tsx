@@ -37,7 +37,7 @@ interface SearchResult { results: any[]; source: string; type: string; }
 
 const QN_MAP: Record<number, string> = { 6: "240P", 16: "360P", 32: "480P", 64: "720P", 80: "1080P" };
 const QN_OPTIONS = [6, 16, 32, 64, 80];
-const DEFAULT_QN = 64;
+const DEFAULT_QN = 32;
 
 /* ============ Main Component ============ */
 
@@ -63,7 +63,11 @@ function ShortsApp() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [muted, setMuted] = useState(false);
-  const [forceProxy, setForceProxy] = useState(true);
+  const [forceProxy, setForceProxy] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("bili_force_proxy");
+    return v === null ? true : v === "1";
+  });
   const [qn, setQn] = useState(DEFAULT_QN);
   const [seed, setSeed] = useState(Date.now());
   const [showControls, setShowControls] = useState(true);
@@ -80,6 +84,11 @@ function ShortsApp() {
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seenBvids = useRef<Set<string>>(new Set());
   const retryMap = useRef<Map<number, number>>(new Map());
+  const prefetchCache = useRef<Map<string, any>>(new Map());
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("bili_force_proxy", forceProxy ? "1" : "0");
+  }, [forceProxy]);
 
   const fetchFeed = useCallback(async (s: number, excludeSet: Set<string>) => {
     if (fetchingRef.current) return;
@@ -129,6 +138,23 @@ function ShortsApp() {
       fetchFeed(seed, seenBvids.current);
     }
   }, [activeIndex, videos.length, seed, fetchFeed]);
+
+  useEffect(() => {
+    if (videos.length === 0) return;
+    const cache = prefetchCache.current;
+    for (let i = 1; i <= 2; i++) {
+      const idx = activeIndex + i;
+      if (idx >= videos.length) break;
+      const v = videos[idx];
+      const key = `${v.bvid}:${qn}`;
+      if (!cache.has(key)) {
+        fetch(`/api/shorts/play?bvid=${v.bvid}&qn=${qn}`)
+          .then((r) => r.json())
+          .then((data) => { if (data.videoUrl) cache.set(key, data); })
+          .catch(() => {});
+      }
+    }
+  }, [activeIndex, videos, qn]);
 
   useEffect(() => {
     let wheelAccum = 0;
@@ -235,6 +261,7 @@ function ShortsApp() {
           danmaku={danmaku}
           onDanmakuChange={setDanmaku}
           onRetry={(idx) => retryMap.current.set(idx, (retryMap.current.get(idx) || 0) + 1)}
+          prefetchCache={prefetchCache}
         />
       )}
 
@@ -425,10 +452,11 @@ function VideoCard({ video, isActive, isNearby }: {
 
 /* ============ Player Overlay (single video element) ============ */
 
-function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danmaku, onDanmakuChange, onRetry }: {
+function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danmaku, onDanmakuChange, onRetry, prefetchCache }: {
   video: VideoItem; index: number; muted: boolean; forceProxy: boolean; qn: number; playbackRate: number;
   danmaku: DanmakuSettings; onDanmakuChange: React.Dispatch<React.SetStateAction<DanmakuSettings>>;
   onRetry: (idx: number) => void;
+  prefetchCache: React.MutableRefObject<Map<string, any>>;
 }) {
   const [resolved, setResolved] = useState<ResolvedVideo | null>(null);
   const [status, setStatus] = useState<"loading" | "playing" | "paused" | "error">("loading");
@@ -459,8 +487,16 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danm
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/shorts/play?bvid=${video.bvid}&qn=${qn}`);
-        const data = await res.json();
+        const cacheKey = `${video.bvid}:${qn}`;
+        const cached = prefetchCache.current.get(cacheKey);
+        let data: any;
+        if (cached) {
+          prefetchCache.current.delete(cacheKey);
+          data = cached;
+        } else {
+          const res = await fetch(`/api/shorts/play?bvid=${video.bvid}&qn=${qn}`);
+          data = await res.json();
+        }
         if (cancelled) return;
         if (data.videoUrl) {
           const useProxy = forceProxy && data.proxyVideoUrl;

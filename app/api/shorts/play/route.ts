@@ -16,7 +16,7 @@ const QN_MAP: Record<number, string> = {
 };
 
 const ALLOWED_QNS = [6, 16, 32, 64, 80, 112, 116, 120];
-const DEFAULT_QN = 64;
+const DEFAULT_QN = 32;
 
 function biliHeaders(referer = "https://www.bilibili.com") {
   const headers: Record<string, string> = {
@@ -54,12 +54,27 @@ function parseQn(input: string | null): number {
   return closest;
 }
 
+const CACHE_TTL = 5 * 60 * 1000;
+
+interface CacheEntry {
+  body: any;
+  expires: number;
+}
+
+const cache = new Map<string, CacheEntry>();
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const bvid = url.searchParams.get("bvid");
   if (!bvid) return NextResponse.json({ error: "缺少bvid参数" }, { status: 400 });
 
   const qn = parseQn(url.searchParams.get("qn"));
+  const cacheKey = `${bvid}:${qn}`;
+
+  const cached = cache.get(cacheKey);
+  if (cached && cached.expires > Date.now()) {
+    return NextResponse.json(cached.body);
+  }
 
   try {
     const pageRes = await fetch(`${BILI_API}/x/player/pagelist?bvid=${bvid}`, {
@@ -70,27 +85,30 @@ export async function GET(request: NextRequest) {
     const cid = pageData.data?.[0]?.cid;
     if (!cid) throw new Error("no cid");
 
+    let resultBody: any;
+
     let playData = await tryPlayUrl(bvid, cid, 0, qn);
     if (playData?.data?.durl?.length > 0) {
-      return buildDurlResponse(playData, bvid, cid, qn);
+      resultBody = buildDurlBody(playData, bvid, cid, qn);
+    } else {
+      playData = await tryPlayUrl(bvid, cid, 1, qn);
+      if (playData?.data?.durl?.length > 0) {
+        resultBody = buildDurlBody(playData, bvid, cid, qn);
+      } else {
+        playData = await tryPlayUrl(bvid, cid, 16, qn);
+        if (playData?.data?.dash?.video?.length > 0) {
+          resultBody = buildDashBody(playData, bvid, cid, qn);
+        } else {
+          resultBody = {
+            embedUrl: `https://www.bilibili.com/video/${bvid}`,
+            bvid, cid, fallback: true,
+          };
+        }
+      }
     }
 
-    playData = await tryPlayUrl(bvid, cid, 1, qn);
-    if (playData?.data?.durl?.length > 0) {
-      return buildDurlResponse(playData, bvid, cid, qn);
-    }
-
-    playData = await tryPlayUrl(bvid, cid, 16, qn);
-    if (playData?.data?.dash?.video?.length > 0) {
-      return buildDashResponse(playData, bvid, cid, qn);
-    }
-
-    return NextResponse.json({
-      embedUrl: `https://www.bilibili.com/video/${bvid}`,
-      bvid,
-      cid,
-      fallback: true,
-    });
+    cache.set(cacheKey, { body: resultBody, expires: Date.now() + CACHE_TTL });
+    return NextResponse.json(resultBody);
   } catch {
     return NextResponse.json({
       embedUrl: `https://www.bilibili.com/video/${bvid}`,
@@ -100,13 +118,13 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function buildDurlResponse(playData: any, bvid: string, cid: string, qn: number) {
+function buildDurlBody(playData: any, bvid: string, cid: string, qn: number) {
   const durl = playData.data.durl;
   const best = durl[durl.length - 1];
   const backupRaw = best.backup_url?.[0] || null;
   const qualities = buildQualityList(playData.data.accept_quality, playData.data.accept_description, qn);
 
-  return NextResponse.json({
+  return {
     videoUrl: best.url,
     proxyVideoUrl: proxyUrl(best.url),
     audioUrl: null,
@@ -119,10 +137,10 @@ function buildDurlResponse(playData: any, bvid: string, cid: string, qn: number)
     qualities,
     bvid,
     cid,
-  });
+  };
 }
 
-function buildDashResponse(playData: any, bvid: string, cid: string, qn: number) {
+function buildDashBody(playData: any, bvid: string, cid: string, qn: number) {
   const dash = playData.data.dash;
   const videos = dash.video as Array<Record<string, unknown>>;
   const audios = dash.audio as Array<Record<string, unknown>> | undefined;
@@ -132,7 +150,7 @@ function buildDashResponse(playData: any, bvid: string, cid: string, qn: number)
   const videoRaw = String(bestVideo.baseUrl || bestVideo.base_url);
   const audioRaw = bestAudio ? String(bestAudio.baseUrl || bestAudio.base_url) : null;
 
-  return NextResponse.json({
+  return {
     videoUrl: videoRaw,
     proxyVideoUrl: proxyUrl(videoRaw),
     audioUrl: audioRaw,
@@ -146,7 +164,7 @@ function buildDashResponse(playData: any, bvid: string, cid: string, qn: number)
     qn,
     qnLabel: QN_MAP[qn] || `${qn}P`,
     qualities,
-  });
+  };
 }
 
 function buildQualityList(acceptQuality: unknown, acceptDesc: unknown, currentQn: number) {

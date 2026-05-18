@@ -57,10 +57,18 @@ function BilibiliApp() {
   const [searchPage, setSearchPage] = useState(1);
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
-  const [globalProxy, setGlobalProxy] = useState(true);
+  const [globalProxy, setGlobalProxy] = useState(() => {
+    if (typeof window === "undefined") return true;
+    const v = localStorage.getItem("bili_force_proxy");
+    return v === null ? true : v === "1";
+  });
   const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("bili_force_proxy", globalProxy ? "1" : "0");
+  }, [globalProxy]);
 
   const doSearch = useCallback(async (q: string, t: string, p: number, append: boolean) => {
     if (!q.trim()) return;

@@ -25,7 +25,7 @@ interface ResolvedPlayData {
 
 const QN_MAP: Record<number, string> = { 6: "240P", 16: "360P", 32: "480P", 64: "720P", 80: "1080P" };
 const QN_OPTIONS = [6, 16, 32, 64, 80];
-const DEFAULT_QN = 64;
+const DEFAULT_QN = 32;
 const SPEED_OPTIONS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
 function fmtTime(s: number): string {

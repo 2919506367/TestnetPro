@@ -62,27 +62,37 @@ export async function GET(request: NextRequest) {
 
     const responseHeaders = new Headers();
 
-    const contentRange = upstreamRes.headers.get("content-range");
-    if (contentRange) responseHeaders.set("Content-Range", contentRange);
-
-    const acceptRanges = upstreamRes.headers.get("accept-ranges");
-    if (acceptRanges) responseHeaders.set("Accept-Ranges", acceptRanges);
-
-    const contentLength = upstreamRes.headers.get("content-length");
-    if (contentLength) responseHeaders.set("Content-Length", contentLength);
+    const forwardHeaders = [
+      "content-range", "accept-ranges", "content-length", "content-type",
+      "etag", "last-modified", "cache-control", "expires",
+    ];
+    for (const h of forwardHeaders) {
+      const v = upstreamRes.headers.get(h);
+      if (v) {
+        if (h === "content-range") responseHeaders.set("Content-Range", v);
+        else if (h === "accept-ranges") responseHeaders.set("Accept-Ranges", v);
+        else if (h === "content-length") responseHeaders.set("Content-Length", v);
+        else if (h === "content-type") responseHeaders.set("Content-Type", v);
+        else if (h === "etag") responseHeaders.set("ETag", v);
+        else if (h === "last-modified") responseHeaders.set("Last-Modified", v);
+        else if (h === "cache-control") responseHeaders.set("X-Upstream-Cache-Control", v);
+        else if (h === "expires") responseHeaders.set("Expires", v);
+      }
+    }
 
     const contentType = upstreamRes.headers.get("content-type") || "";
-    responseHeaders.set("Content-Type", contentType || "video/mp4");
+    if (!contentType) responseHeaders.set("Content-Type", "video/mp4");
 
     if (contentType.startsWith("image/")) {
       responseHeaders.set("Cache-Control", "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800");
-      responseHeaders.set("CDN-Cache-Control", "public, max-age=86400");
+    } else if (contentType.startsWith("video/") || contentType.startsWith("audio/")) {
+      responseHeaders.set("Cache-Control", "public, max-age=60, s-maxage=60");
     } else {
       responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
     }
     responseHeaders.set("Access-Control-Allow-Origin", "*");
     responseHeaders.set("Access-Control-Allow-Headers", "Range, Content-Range, Content-Type");
-    responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");
+    responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, ETag, Last-Modified");
 
     const status = clientRange && upstreamRes.status === 206 ? 206 : upstreamRes.status;
 
