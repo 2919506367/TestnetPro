@@ -614,8 +614,8 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danm
       )}
 
       {/* Danmaku */}
-      {danmaku.enabled && status === "playing" && (
-        <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={status === "playing"} settings={danmaku} />
+      {danmaku.enabled && (status === "playing" || status === "paused" || status === "loading") && (
+        <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={status === "playing"} settings={danmaku} playbackRate={localSpeed} />
       )}
 
       {/* Progress bar */}

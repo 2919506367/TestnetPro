@@ -48,13 +48,16 @@ export default function DanmakuLayer({
   currentTime,
   playing,
   settings,
+  playbackRate,
 }: {
   cid: number;
   currentTime: number;
   playing: boolean;
   settings: DanmakuSettings;
+  playbackRate?: number;
 }) {
   const { enabled, opacity, fontSize, speed, blockTop, blockBottom, blockScroll, dedupe } = settings;
+  const rate = Math.max(0.25, playbackRate || 1);
   const [danmakus, setDanmakus] = useState<DanmakuItem[]>([]);
   const [floating, setFloating] = useState<FloatingDanmaku[]>([]);
   const [topDanmakus, setTopDanmakus] = useState<FloatingDanmaku[]>([]);
@@ -126,7 +129,7 @@ export default function DanmakuLayer({
 
       const id = idCounter.current++;
       const scaledSize = Math.max(14, Math.min(32, (item.size / 25) * fontSize));
-      const duration = speed + Math.random() * 2000;
+      const duration = (speed + Math.random() * 2000) / rate;
 
       // Mode 5 = top fixed, mode 4 = bottom fixed, others = scrolling
       if (item.mode === 5) {
@@ -191,43 +194,57 @@ export default function DanmakuLayer({
 
   return (
     <div ref={containerRef} className="absolute inset-0 pointer-events-none overflow-hidden z-30" style={{ opacity }}>
+      <style jsx>{`
+        .danmaku-scroll {
+          animation: danmaku-scroll var(--dm-duration, 8000ms) linear forwards;
+          animation-play-state: var(--dm-state, running);
+        }
+        .danmaku-top-fixed {
+          animation: danmaku-top var(--dm-duration, 5000ms) ease-out forwards;
+          animation-play-state: var(--dm-state, running);
+        }
+        .danmaku-bottom-fixed {
+          animation: danmaku-bottom var(--dm-duration, 5000ms) ease-out forwards;
+          animation-play-state: var(--dm-state, running);
+        }
+      `}</style>
       {floating.map((d) => (
         <span
           key={d.id}
-          className="absolute whitespace-nowrap font-bold"
+          className="absolute whitespace-nowrap font-bold danmaku-scroll"
           style={{
             fontSize: d.size,
             color: d.color,
             top: d.top,
             left: "100%",
             textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
-            animation: `danmaku-scroll ${d.duration}ms linear`,
-            animationFillMode: "forwards",
-          }}
+            ["--dm-duration" as string]: `${d.duration}ms`,
+            ["--dm-state" as string]: playing ? "running" : "paused",
+          } as React.CSSProperties}
         >{d.text}</span>
       ))}
       {topDanmakus.map((d) => (
         <span
           key={d.id}
-          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center"
+          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center danmaku-top-fixed"
           style={{
             fontSize: d.size, color: d.color, top: d.top,
             textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
-            animation: `danmaku-top ${d.duration}ms ease-out`,
-            animationFillMode: "forwards",
-          }}
+            ["--dm-duration" as string]: `${d.duration}ms`,
+            ["--dm-state" as string]: playing ? "running" : "paused",
+          } as React.CSSProperties}
         >{d.text}</span>
       ))}
       {bottomDanmakus.map((d) => (
         <span
           key={d.id}
-          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center"
+          className="absolute left-1/2 -translate-x-1/2 whitespace-nowrap font-bold text-center danmaku-bottom-fixed"
           style={{
             fontSize: d.size, color: d.color, top: d.top,
             textShadow: "1px 0 2px rgba(0,0,0,0.8), -1px 0 2px rgba(0,0,0,0.8), 0 1px 2px rgba(0,0,0,0.8), 0 -1px 2px rgba(0,0,0,0.8)",
-            animation: `danmaku-bottom ${d.duration}ms ease-out`,
-            animationFillMode: "forwards",
-          }}
+            ["--dm-duration" as string]: `${d.duration}ms`,
+            ["--dm-state" as string]: playing ? "running" : "paused",
+          } as React.CSSProperties}
         >{d.text}</span>
       ))}
       <style jsx>{`

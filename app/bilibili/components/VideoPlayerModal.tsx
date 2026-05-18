@@ -305,8 +305,8 @@ export default function VideoPlayerModal({
         )}
 
         {/* Danmaku */}
-        {danmaku.enabled && resolved && (phase === "playing" || phase === "paused") && (
-          <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={phase === "playing"} settings={danmaku} />
+        {danmaku.enabled && resolved && (phase === "playing" || phase === "paused" || phase === "buffering") && (
+          <DanmakuLayer cid={resolved.cid} currentTime={currentTime} playing={phase === "playing"} settings={danmaku} playbackRate={playbackRate} />
         )}
 
         {/* Top info bar */}
