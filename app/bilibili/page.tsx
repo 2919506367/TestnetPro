@@ -405,12 +405,13 @@ function UserProfileModal({
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<"pubtime" | "click">("pubtime");
   const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
 
-  const fetchVideos = useCallback(async (p: number, append: boolean) => {
+  const doFetch = useCallback(async (p: number, s: string, st: string, append: boolean) => {
     if (append) setLoadingMore(true);
     else setLoading(true);
     try {
-      const res = await fetch(`/api/bili/user/${mid}/videos?page=${p}&size=6&sort=${sort}&search=${encodeURIComponent(search)}`);
+      const res = await fetch(`/api/bili/user/${mid}/videos?page=${p}&size=6&sort=${st}&search=${encodeURIComponent(s)}`);
       const data: { videos: VideoItem[]; hasMore: boolean; total: number } = await res.json();
       if (append) {
         setVideos((prev) => [...prev, ...(data.videos || [])]);
@@ -423,12 +424,11 @@ function UserProfileModal({
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [mid, sort, search]);
+  }, [mid]);
 
   useEffect(() => {
-    setPage(1);
-    fetchVideos(1, false);
-  }, [mid, sort, search, fetchVideos]);
+    doFetch(1, search, sort, false);
+  }, [mid, sort, search, doFetch]);
 
   useEffect(() => {
     (async () => {
@@ -442,7 +442,20 @@ function UserProfileModal({
   const loadMore = () => {
     const next = page + 1;
     setPage(next);
-    fetchVideos(next, true);
+    doFetch(next, search, sort, true);
+  };
+
+  const handleSearch = () => {
+    const q = searchInput.trim();
+    setSearch(q);
+    setPage(1);
+    doFetch(1, q, sort, false);
+  };
+
+  const handleSort = (s: "pubtime" | "click") => {
+    setSort(s);
+    setPage(1);
+    doFetch(1, search, s, false);
   };
 
   const overlayBg = dark ? "bg-black/95" : "bg-white/98";
@@ -474,22 +487,29 @@ function UserProfileModal({
 
             {/* Search + Sort controls */}
             <div className="flex flex-col sm:flex-row gap-2 mb-4">
-              <div className="flex-1 relative">
-                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${textSecondary}`} />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="搜索视频标题..."
-                  className={`w-full pl-9 pr-3 py-2 text-xs rounded-lg border ${dark ? "bg-white/5 border-white/10 text-white placeholder:text-white/30" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400"} focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
-                />
+              <div className="flex-1 flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${textSecondary}`} />
+                  <input
+                    type="text"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleSearch(); }}
+                    placeholder="搜索视频标题，回车确认..."
+                    className={`w-full pl-9 pr-3 py-2 text-xs rounded-lg border ${dark ? "bg-white/5 border-white/10 text-white placeholder:text-white/30" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400"} focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                  />
+                </div>
+                <button onClick={handleSearch}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${dark ? "bg-pink-500/20 text-pink-300 hover:bg-pink-500/30" : "bg-pink-50 text-pink-600 hover:bg-pink-100"}`}>
+                  搜索
+                </button>
               </div>
               <div className="flex gap-1 flex-shrink-0">
-                <button onClick={() => setSort("pubtime")}
+                <button onClick={() => handleSort("pubtime")}
                   className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${sort === "pubtime" ? (dark ? "bg-pink-500/30 text-pink-300" : "bg-pink-50 text-pink-600") : (dark ? "bg-white/5 text-white/50 hover:bg-white/10" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}`}>
                   最新发布
                 </button>
-                <button onClick={() => setSort("click")}
+                <button onClick={() => handleSort("click")}
                   className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${sort === "click" ? (dark ? "bg-pink-500/30 text-pink-300" : "bg-pink-50 text-pink-600") : (dark ? "bg-white/5 text-white/50 hover:bg-white/10" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}`}>
                   最多播放
                 </button>

@@ -14,16 +14,17 @@ export async function GET(
 
   try {
     const data = await biliFetch(
-      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=${size}&pn=${page}&order=${sort}`,
+      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=${size}&pn=${page}&order=pubtime`,
       `https://space.bilibili.com/${mid}`
     );
 
     if (!data || data.code !== 0) {
-      return NextResponse.json({ videos: [], page, hasMore: false });
+      return NextResponse.json({ videos: [], page, hasMore: false, total: 0 });
     }
 
     const rawList: Record<string, unknown>[] = data.data?.media_list || [];
-    const total = Number(data.data?.total || 0);
+    const total = Number(data.data?.total || data.data?.info?.total || 0);
+    const hasMoreRaw = data.data?.has_more !== undefined ? Boolean(data.data.has_more) : (page * size < total);
 
     const videos = rawList.map((v: Record<string, unknown>) => {
       const upper = (v.upper || {}) as Record<string, unknown>;
@@ -52,6 +53,7 @@ export async function GET(
         durationSec,
         description: String(v.intro || "").substring(0, 120),
         pubdate: Number(v.pubtime || v.ctime || 0),
+        _playCountRaw: Number(cnt.play || 0),
       };
     });
 
@@ -61,15 +63,20 @@ export async function GET(
       filtered = videos.filter((v: { title: string }) => v.title.toLowerCase().includes(q));
     }
 
+    if (sort === "click") {
+      filtered.sort((a, b) => ((b as any)._playCountRaw || 0) - ((a as any)._playCountRaw || 0));
+    }
+
+    const clean = filtered.map(({ _playCountRaw, ...rest }: any) => rest);
+
     return NextResponse.json({
-      videos: filtered,
+      videos: clean,
       page,
-      hasMore: page * size < total && search === "",
-      total,
-      totalFiltered: filtered.length,
+      hasMore: hasMoreRaw && search === "",
+      total: search ? clean.length : total,
     });
   } catch {
-    return NextResponse.json({ videos: [], page, hasMore: false });
+    return NextResponse.json({ videos: [], page, hasMore: false, total: 0 });
   }
 }
 
