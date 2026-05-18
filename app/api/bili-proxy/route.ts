@@ -71,10 +71,15 @@ export async function GET(request: NextRequest) {
     const contentLength = upstreamRes.headers.get("content-length");
     if (contentLength) responseHeaders.set("Content-Length", contentLength);
 
-    const contentType = upstreamRes.headers.get("content-type");
+    const contentType = upstreamRes.headers.get("content-type") || "";
     responseHeaders.set("Content-Type", contentType || "video/mp4");
 
-    responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    if (contentType.startsWith("image/")) {
+      responseHeaders.set("Cache-Control", "public, max-age=86400, s-maxage=86400, stale-while-revalidate=604800");
+      responseHeaders.set("CDN-Cache-Control", "public, max-age=86400");
+    } else {
+      responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    }
     responseHeaders.set("Access-Control-Allow-Origin", "*");
     responseHeaders.set("Access-Control-Allow-Headers", "Range, Content-Range, Content-Type");
     responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length");

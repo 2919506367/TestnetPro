@@ -50,16 +50,8 @@ export function formatPubdate(ts: number): string {
   return `${y}-${m}-${day}`;
 }
 
-function ensureHttps(url: string): string {
-  if (url.startsWith("https://")) return url;
-  if (url.startsWith("//")) return "https:" + url;
-  if (url.startsWith("http://")) return url.replace("http://", "https://");
-  return url;
-}
-
 export function proxyUrl(rawUrl: string): string {
   if (!rawUrl) return "";
-  if (rawUrl.includes("hdslb.com")) return ensureHttps(rawUrl);
   return `/api/bili-proxy?url=${encodeURIComponent(rawUrl)}`;
 }
 
