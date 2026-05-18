@@ -1,6 +1,6 @@
 import paramiko,time,os
 base='d:/NetDriveFullStackPro'
-files=['lib/bilibili.ts','app/bilibili/components/VideoGrid.tsx','app/bilibili/page.tsx','app/shorts/page.tsx']
+files=['lib/bilibili.ts','app/bilibili/components/VideoGrid.tsx','app/bilibili/components/DanmakuLayer.tsx','app/bilibili/components/VideoPlayerModal.tsx','app/bilibili/page.tsx','app/shorts/page.tsx','app/api/bili/search/route.ts','app/api/bili/user/[mid]/videos/route.ts']
 
 for name,h,pw in [('HK','38.92.9.169','b7jkyvUVTcE3PpxY'),('CN','106.14.126.214','Zholv155156.')]:
     for a in range(10):
@@ -9,6 +9,7 @@ for name,h,pw in [('HK','38.92.9.169','b7jkyvUVTcE3PpxY'),('CN','106.14.126.214'
             s.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             s.connect(h,username='root',password=pw,timeout=10)
             print(f'{name}: connected')
+            s.exec_command('mkdir -p /root/cloud-drive/app/api/bili/user/\[mid\]/videos',timeout=5)
             sf=s.open_sftp()
             for f in files:
                 sf.put(os.path.join(base,f).replace('\\','/'),f'/root/cloud-drive/{f}')

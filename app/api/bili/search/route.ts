@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         bvid: String(v.bvid || ""),
         aid: Number(v.aid || 0),
         cid: 0,
-        title: String(v.title || ""),
+        title: stripHtml(String(v.title || "")),
         author: String(v.author || ""),
         authorMid: Number(v.mid || 0),
         authorFace: fixUrl(String(v.upic || "")),
@@ -96,4 +96,8 @@ function fixUrl(url: string): string {
   if (url.startsWith("//")) return "https:" + url;
   if (url.startsWith("http")) return url;
   return "https://" + url;
+}
+
+function stripHtml(s: string): string {
+  return s.replace(/<[^>]*>/g, "");
 }

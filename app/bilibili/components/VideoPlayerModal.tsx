@@ -6,12 +6,12 @@ import {
   AlertCircle, ChevronRight, ChevronLeft, Shield, ShieldOff, Gauge,
 } from "lucide-react";
 import { proxyUrl } from "@/lib/bilibili";
-import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "./DanmakuLayer";
+import DanmakuLayer, { DanmakuSettings } from "./DanmakuLayer";
 import CommentSection from "./CommentSection";
 
 interface PlayVideo {
   bvid: string; aid: number; cid: number;
-  title: string; author: string; authorFace: string; cover: string;
+  title: string; author: string; authorMid: number; authorFace: string; cover: string;
 }
 
 interface ResolvedPlayData {
@@ -35,12 +35,15 @@ function fmtTime(s: number): string {
 }
 
 export default function VideoPlayerModal({
-  video, onClose, dark, forceProxy,
+  video, onClose, dark, forceProxy, danmaku, onDanmakuChange, onShowUserProfile,
 }: {
   video: PlayVideo | null;
   onClose: () => void;
   dark: boolean;
   forceProxy: boolean;
+  danmaku: DanmakuSettings;
+  onDanmakuChange: React.Dispatch<React.SetStateAction<DanmakuSettings>>;
+  onShowUserProfile?: (mid: number) => void;
 }) {
   const [phase, setPhase] = useState<"resolving" | "buffering" | "playing" | "paused" | "error" | "fallback">("resolving");
   const [resolved, setResolved] = useState<ResolvedPlayData | null>(null);
@@ -55,7 +58,6 @@ export default function VideoPlayerModal({
   const [loadSpeedKbps, setLoadSpeedKbps] = useState(0);
   const [loadPercent, setLoadPercent] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
   const [showDanmakuSettings, setShowDanmakuSettings] = useState(false);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(true);
@@ -314,8 +316,14 @@ export default function VideoPlayerModal({
           <div className={`absolute top-0 left-0 right-0 z-20 p-5 bg-gradient-to-b from-black/60 to-transparent transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}>
             <h2 className="text-white text-sm font-medium line-clamp-1" style={{ paddingLeft: 48 }}>{video.title}</h2>
             <div className="flex items-center gap-2 mt-1.5" style={{ paddingLeft: 48 }}>
-              <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
-              <span className="text-white/70 text-xs">{video.author}</span>
+              <button
+                onClick={() => { if (onShowUserProfile && video.authorMid) onShowUserProfile(video.authorMid); }}
+                className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-2 transition-colors"
+                title="查看主页"
+              >
+                <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
+                <span className="text-white/70 text-xs">{video.author}</span>
+              </button>
             </div>
           </div>
         )}
@@ -357,7 +365,7 @@ export default function VideoPlayerModal({
                 <button onClick={() => setMuted(!muted)} className="p-1.5 rounded hover:bg-white/10">
                   {muted ? <VolumeX className="w-4 h-4 text-white/60" /> : <Volume2 className="w-4 h-4 text-white/60" />}
                 </button>
-                <button onClick={() => setDanmaku((p) => ({ ...p, enabled: !p.enabled }))}
+                <button onClick={() => onDanmakuChange((p) => ({ ...p, enabled: !p.enabled }))}
                   className={`px-2.5 py-1 rounded text-[11px] ${danmaku.enabled ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>
                   弹{danmaku.enabled ? "✓" : ""}
                 </button>
@@ -382,32 +390,32 @@ export default function VideoPlayerModal({
                 <div className="flex items-center gap-2 text-white/60 text-[11px]">
                   <span className="w-10 flex-shrink-0">透明度</span>
                   <input type="range" min={10} max={100} value={Math.round(danmaku.opacity * 100)}
-                    onChange={(e) => setDanmaku((p) => ({ ...p, opacity: Number(e.target.value) / 100 }))}
+                    onChange={(e) => onDanmakuChange((p) => ({ ...p, opacity: Number(e.target.value) / 100 }))}
                     className="flex-1 h-1 accent-pink-500" />
                   <span className="w-6 text-right text-[10px]">{Math.round(danmaku.opacity * 100)}%</span>
                 </div>
                 <div className="flex items-center gap-2 text-white/60 text-[11px]">
                   <span className="w-10 flex-shrink-0">字号</span>
                   <input type="range" min={14} max={36} value={danmaku.fontSize}
-                    onChange={(e) => setDanmaku((p) => ({ ...p, fontSize: Number(e.target.value) }))}
+                    onChange={(e) => onDanmakuChange((p) => ({ ...p, fontSize: Number(e.target.value) }))}
                     className="flex-1 h-1 accent-pink-500" />
                   <span className="w-6 text-right text-[10px]">{danmaku.fontSize}</span>
                 </div>
                 <div className="flex items-center gap-2 text-white/60 text-[11px]">
                   <span className="w-10 flex-shrink-0">速度</span>
                   <input type="range" min={4000} max={16000} step={500} value={danmaku.speed}
-                    onChange={(e) => setDanmaku((p) => ({ ...p, speed: Number(e.target.value) }))}
+                    onChange={(e) => onDanmakuChange((p) => ({ ...p, speed: Number(e.target.value) }))}
                     className="flex-1 h-1 accent-pink-500" />
                   <span className="w-10 text-right text-[10px]">{danmaku.speed}ms</span>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <button onClick={() => setDanmaku((p) => ({ ...p, blockTop: !p.blockTop }))}
+                  <button onClick={() => onDanmakuChange((p) => ({ ...p, blockTop: !p.blockTop }))}
                     className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockTop ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽顶部</button>
-                  <button onClick={() => setDanmaku((p) => ({ ...p, blockBottom: !p.blockBottom }))}
+                  <button onClick={() => onDanmakuChange((p) => ({ ...p, blockBottom: !p.blockBottom }))}
                     className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockBottom ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽底部</button>
-                  <button onClick={() => setDanmaku((p) => ({ ...p, blockScroll: !p.blockScroll }))}
+                  <button onClick={() => onDanmakuChange((p) => ({ ...p, blockScroll: !p.blockScroll }))}
                     className={`px-2.5 py-1 rounded text-[10px] ${danmaku.blockScroll ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>屏蔽滚动</button>
-                  <button onClick={() => setDanmaku((p) => ({ ...p, dedupe: !p.dedupe }))}
+                  <button onClick={() => onDanmakuChange((p) => ({ ...p, dedupe: !p.dedupe }))}
                     className={`px-2.5 py-1 rounded text-[10px] ${danmaku.dedupe ? "bg-pink-500/30 text-pink-300" : "bg-white/10 text-white/40 hover:bg-white/20"}`}>{danmaku.dedupe ? "去重:开" : "去重:关"}</button>
                 </div>
               </div>
@@ -433,8 +441,14 @@ export default function VideoPlayerModal({
           <div className="p-4">
             <h3 className={`text-sm font-semibold mb-2 ${dark ? "text-white" : "text-gray-900"}`}>{video.title}</h3>
             <div className="flex items-center gap-3 mb-3">
-              <img src={proxyUrl(video.authorFace)} alt="" className="w-8 h-8 rounded-full bg-gray-300" />
-              <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-gray-700"}`}>{video.author}</span>
+              <button
+                onClick={() => { if (onShowUserProfile && video.authorMid) onShowUserProfile(video.authorMid); }}
+                className="flex items-center gap-3 hover:bg-white/5 rounded-lg p-1 -ml-1 transition-colors"
+                title="查看主页"
+              >
+                <img src={proxyUrl(video.authorFace)} alt="" className="w-8 h-8 rounded-full bg-gray-300" />
+                <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-gray-700"}`}>{video.author}</span>
+              </button>
             </div>
             <CommentSection aid={video.aid} dark={dark} />
           </div>

@@ -10,6 +10,7 @@ import {
 import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 import VideoGrid from "./components/VideoGrid";
 import VideoPlayerModal from "./components/VideoPlayerModal";
+import { DanmakuSettings, DANMAKU_DEFAULTS } from "./components/DanmakuLayer";
 
 interface VideoItem {
   id: string; bvid: string; aid: number; cid: number;
@@ -22,7 +23,7 @@ interface VideoItem {
 
 interface PlayVideo {
   bvid: string; aid: number; cid: number;
-  title: string; author: string; authorFace: string; cover: string;
+  title: string; author: string; authorMid: number; authorFace: string; cover: string;
 }
 
 function LoadingFallback() {
@@ -57,6 +58,7 @@ function BilibiliApp() {
   const [searchHasMore, setSearchHasMore] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [globalProxy, setGlobalProxy] = useState(true);
+  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -109,7 +111,7 @@ function BilibiliApp() {
   const handlePlayFromGrid = (video: VideoItem) => {
     setPlayingVideo({
       bvid: video.bvid, aid: video.aid, cid: video.cid,
-      title: video.title, author: video.author,
+      title: video.title, author: video.author, authorMid: video.authorMid,
       authorFace: video.authorFace, cover: video.cover,
     });
   };
@@ -231,7 +233,7 @@ function BilibiliApp() {
                   key={i}
                   onClick={() => handlePlayFromSearch({
                     bvid: item.bvid, aid: item.aid, cid: item.cid,
-                    title: item.title, author: item.author,
+                    title: item.title, author: item.author, authorMid: item.authorMid || 0,
                     authorFace: item.authorFace, cover: item.cover,
                   })}
                   className={`flex gap-3 p-2 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
@@ -299,6 +301,9 @@ function BilibiliApp() {
           onClose={() => setPlayingVideo(null)}
           dark={dark}
           forceProxy={globalProxy}
+          danmaku={danmaku}
+          onDanmakuChange={setDanmaku}
+          onShowUserProfile={setShowUserProfile}
         />
       )}
 
@@ -394,19 +399,51 @@ function UserProfileModal({
   const [profile, setProfile] = useState<{ mid: number; name: string; face: string; sign: string; followerCount: string; videoCount: number } | null>(null);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState<"pubtime" | "click">("pubtime");
+  const [search, setSearch] = useState("");
+
+  const fetchVideos = useCallback(async (p: number, append: boolean) => {
+    if (append) setLoadingMore(true);
+    else setLoading(true);
+    try {
+      const res = await fetch(`/api/bili/user/${mid}/videos?page=${p}&size=6&sort=${sort}&search=${encodeURIComponent(search)}`);
+      const data: { videos: VideoItem[]; hasMore: boolean; total: number } = await res.json();
+      if (append) {
+        setVideos((prev) => [...prev, ...(data.videos || [])]);
+      } else {
+        setVideos(data.videos || []);
+      }
+      setHasMore(data.hasMore || false);
+      setTotal(data.total || 0);
+    } catch {} finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [mid, sort, search]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchVideos(1, false);
+  }, [mid, sort, search, fetchVideos]);
 
   useEffect(() => {
     (async () => {
       try {
-        const [pRes, vRes] = await Promise.all([
-          fetch(`/api/bili/user/${mid}`),
-          fetch(`/api/bili/user/${mid}/videos`),
-        ]);
-        setProfile(await pRes.json());
-        setVideos(((await vRes.json()) as any).videos || []);
-      } catch {} finally { setLoading(false); }
+        const res = await fetch(`/api/bili/user/${mid}`);
+        setProfile(await res.json());
+      } catch {}
     })();
   }, [mid]);
+
+  const loadMore = () => {
+    const next = page + 1;
+    setPage(next);
+    fetchVideos(next, true);
+  };
 
   const overlayBg = dark ? "bg-black/95" : "bg-white/98";
   const textPrimary = dark ? "text-white" : "text-gray-900";
@@ -434,27 +471,70 @@ function UserProfileModal({
                 {profile.sign && <p className={`text-xs mt-1 ${textSecondary}`}>{profile.sign}</p>}
               </div>
             </div>
-            <h3 className={`text-sm font-semibold mb-3 ${textPrimary}`}>作品列表</h3>
-            {videos.length === 0 ? (
-              <p className={`text-sm text-center py-8 ${textSecondary}`}>暂无公开作品</p>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {videos.map((v) => (
-                  <button
-                    key={v.id}
-                    onClick={() => onPlayVideo({ bvid: v.bvid, aid: v.aid, cid: v.cid, title: v.title, author: v.author, authorFace: v.authorFace, cover: v.cover })}
-                    className={`${cardBg} rounded-xl overflow-hidden transition-all text-left w-full`}
-                  >
-                    <div className="aspect-video overflow-hidden">
-                      <img src={proxyUrl(v.cover)} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
-                    </div>
-                    <div className="p-2">
-                      <h4 className={`text-xs line-clamp-2 mb-1 ${textPrimary}`}>{v.title}</h4>
-                      <p className={`text-[10px] ${textSecondary}`}>{v.playCount}播放 · {v.duration}</p>
-                    </div>
-                  </button>
-                ))}
+
+            {/* Search + Sort controls */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-4">
+              <div className="flex-1 relative">
+                <Search className={`absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${textSecondary}`} />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="搜索视频标题..."
+                  className={`w-full pl-9 pr-3 py-2 text-xs rounded-lg border ${dark ? "bg-white/5 border-white/10 text-white placeholder:text-white/30" : "bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400"} focus:outline-none focus:ring-2 focus:ring-blue-500/20`}
+                />
               </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => setSort("pubtime")}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${sort === "pubtime" ? (dark ? "bg-pink-500/30 text-pink-300" : "bg-pink-50 text-pink-600") : (dark ? "bg-white/5 text-white/50 hover:bg-white/10" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}`}>
+                  最新发布
+                </button>
+                <button onClick={() => setSort("click")}
+                  className={`px-3 py-2 rounded-lg text-xs font-medium transition-colors ${sort === "click" ? (dark ? "bg-pink-500/30 text-pink-300" : "bg-pink-50 text-pink-600") : (dark ? "bg-white/5 text-white/50 hover:bg-white/10" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}`}>
+                  最多播放
+                </button>
+              </div>
+            </div>
+
+            <h3 className={`text-sm font-semibold mb-3 ${textPrimary}`}>
+              作品列表
+              {total > 0 && <span className={`text-xs font-normal ml-2 ${textSecondary}`}>{total}个</span>}
+            </h3>
+            {videos.length === 0 ? (
+              <p className={`text-sm text-center py-8 ${textSecondary}`}>{search ? "未搜索到视频" : "暂无公开作品"}</p>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {videos.map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => onPlayVideo({ bvid: v.bvid, aid: v.aid, cid: v.cid, title: v.title, author: v.author, authorMid: v.authorMid, authorFace: v.authorFace, cover: v.cover })}
+                      className={`${cardBg} rounded-xl overflow-hidden transition-all text-left w-full`}
+                    >
+                      <div className="aspect-video overflow-hidden">
+                        <img src={proxyUrl(v.cover)} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
+                      </div>
+                      <div className="p-2">
+                        <h4 className={`text-xs line-clamp-2 mb-1 ${textPrimary}`}>{v.title}</h4>
+                        <p className={`text-[10px] ${textSecondary}`}>{v.playCount}播放 · {v.duration}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                {loadingMore && (
+                  <div className="flex justify-center py-6">
+                    <div className={`w-5 h-5 rounded-full border-2 border-t-transparent animate-spin ${dark ? "border-white/20 border-t-white" : "border-gray-300 border-t-gray-600"}`} />
+                  </div>
+                )}
+                {hasMore && !loadingMore && (
+                  <div className="flex justify-center py-6">
+                    <button onClick={loadMore}
+                      className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}>
+                      加载更多
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (

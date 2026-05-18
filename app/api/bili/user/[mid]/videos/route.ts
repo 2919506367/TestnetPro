@@ -9,10 +9,12 @@ export async function GET(
   const url = new URL(_request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const size = Math.min(12, Math.max(3, parseInt(url.searchParams.get("size") || "6", 10)));
+  const sort = url.searchParams.get("sort") || "pubtime";
+  const search = (url.searchParams.get("search") || "").trim();
 
   try {
     const data = await biliFetch(
-      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=${size}&pn=${page}&order=pubtime`,
+      `/x/v2/medialist/resource/list?type=1&biz_id=${mid}&ps=${size}&pn=${page}&order=${sort}`,
       `https://space.bilibili.com/${mid}`
     );
 
@@ -53,11 +55,18 @@ export async function GET(
       };
     });
 
+    let filtered = videos;
+    if (search) {
+      const q = search.toLowerCase();
+      filtered = videos.filter((v: { title: string }) => v.title.toLowerCase().includes(q));
+    }
+
     return NextResponse.json({
-      videos,
+      videos: filtered,
       page,
-      hasMore: page * size < total,
+      hasMore: page * size < total && search === "",
       total,
+      totalFiltered: filtered.length,
     });
   } catch {
     return NextResponse.json({ videos: [], page, hasMore: false });
