@@ -414,7 +414,11 @@ function UserProfileModal({
       const res = await fetch(`/api/bili/user/${mid}/videos?page=${p}&size=6&sort=${st}&search=${encodeURIComponent(s)}`);
       const data: { videos: VideoItem[]; hasMore: boolean; total: number } = await res.json();
       if (append) {
-        setVideos((prev) => [...prev, ...(data.videos || [])]);
+        setVideos((prev) => {
+          const seen = new Set(prev.map((v) => v.id || v.bvid));
+          const fresh = (data.videos || []).filter((v: VideoItem) => !seen.has(v.id || v.bvid));
+          return [...prev, ...fresh];
+        });
       } else {
         setVideos(data.videos || []);
       }
@@ -426,9 +430,18 @@ function UserProfileModal({
     }
   }, [mid]);
 
+  const resetAndFetch = useCallback((s: string, st: string) => {
+    setPage(1);
+    setVideos([]);
+    setHasMore(false);
+    setTotal(0);
+    setLoadingMore(false);
+    doFetch(1, s, st, false);
+  }, [doFetch]);
+
   useEffect(() => {
-    doFetch(1, search, sort, false);
-  }, [mid, sort, search, doFetch]);
+    resetAndFetch(search, sort);
+  }, [mid, sort, search, resetAndFetch]);
 
   useEffect(() => {
     (async () => {
@@ -440,6 +453,7 @@ function UserProfileModal({
   }, [mid]);
 
   const loadMore = () => {
+    if (loadingMore) return;
     const next = page + 1;
     setPage(next);
     doFetch(next, search, sort, true);
@@ -448,14 +462,12 @@ function UserProfileModal({
   const handleSearch = () => {
     const q = searchInput.trim();
     setSearch(q);
-    setPage(1);
-    doFetch(1, q, sort, false);
+    resetAndFetch(q, sort);
   };
 
   const handleSort = (s: "pubtime" | "click") => {
     setSort(s);
-    setPage(1);
-    doFetch(1, search, s, false);
+    resetAndFetch(search, s);
   };
 
   const overlayBg = dark ? "bg-black/95" : "bg-white/98";
@@ -548,8 +560,8 @@ function UserProfileModal({
                 )}
                 {hasMore && !loadingMore && (
                   <div className="flex justify-center py-6">
-                    <button onClick={loadMore}
-                      className={`px-6 py-2 rounded-full text-sm font-medium transition-colors ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}>
+                    <button onClick={loadMore} disabled={loadingMore}
+                      className={`px-6 py-2 rounded-full text-sm font-medium transition-colors disabled:opacity-40 ${dark ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}>
                       加载更多
                     </button>
                   </div>
