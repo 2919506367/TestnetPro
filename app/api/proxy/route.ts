@@ -16,16 +16,6 @@ function $(p){
   try{return P+"?url="+encodeURIComponent(new URL(p,U).href)}catch(e){return p}
 }
 
-function rewriteCssText(txt){
-  if(!txt||typeof txt!=="string")return txt;
-  return txt.replace(/url\\\\(\\s*(["']?)([^"')]+)\\\\1\\\\)/gi,function(m,q,rw){
-    var rr=rw.trim();
-    if(/^(data:|#|blob:)/i.test(rr))return m;
-    if(rr.indexOf(P)!==-1)return m;
-    try{return"url("+q+$((new URL(rr,U)).href)+q+")"}catch(e){return m}
-  });
-}
-
 /* ---- network ---- */
 var _o=XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open=function(m,a,b,u,p){arguments[1]=$(a);return _o.apply(this,arguments)};
@@ -34,84 +24,52 @@ window.fetch=function(i,o){var u=typeof i==="string"?i:(i instanceof Request?i.u
 window.open=function(u,n,f){return Function.prototype.call.call(window.open,window,$(u),n,f)};
 var _assign=window.location.assign.bind(window.location);
 window.location.assign=function(u){_assign($(u))};
-var _repl=window.location.replace.bind(window.location);
-window.location.replace=function(u){_repl($(u))};
+var _replace=window.location.replace.bind(window.location);
+window.location.replace=function(u){_replace($(u))};
 
-/* ---- setAttribute (增加 style 属性 url() 的改写) ---- */
+/* ---- setAttribute ---- */
 var _sa=Element.prototype.setAttribute;
-Element.prototype.setAttribute=function(n,v){
-  if(n==="src"||n==="href"||n==="srcset"||n==="poster"||n==="data"||n==="action")v=$(v);
-  if(n==="style")v=rewriteCssText(v);
-  return _sa.call(this,n,v);
-};
+Element.prototype.setAttribute=function(n,v){if(n==="src"||n==="href"||n==="srcset")v=$(v);return _sa.call(this,n,v)};
 
 /* ---- history ---- */
 var _push=History.prototype.pushState;
 History.prototype.pushState=function(s,t,u){return _push.apply(this,[s,t,$(u)])};
-var _rs=History.prototype.replaceState;
-History.prototype.replaceState=function(s,t,u){return _rs.apply(this,[s,t,$(u)])};
+var _rstate=History.prototype.replaceState;
+History.prototype.replaceState=function(s,t,u){return _rstate.apply(this,[s,t,$(u)])};
 
 /* ---- direct property setters ---- */
-function hp(proto,prop){
+function hookProp(proto,prop){
   try{
     var d=Object.getOwnPropertyDescriptor(proto,prop);
     if(d&&d.set){
-      var o=d.set;
-      Object.defineProperty(proto,prop,{get:d.get,set:function(v){return o.call(this,$(v))},configurable:true,enumerable:true})
+      var origSet=d.set;
+      Object.defineProperty(proto,prop,{get:d.get,set:function(v){return origSet.call(this,$(v))},configurable:true,enumerable:true})
     }
   }catch(e){}
 }
-hp(HTMLAnchorElement.prototype,'href');
-hp(HTMLImageElement.prototype,'src');
-hp(HTMLImageElement.prototype,'srcset');
-hp(HTMLScriptElement.prototype,'src');
-hp(HTMLIFrameElement.prototype,'src');
-hp(HTMLVideoElement.prototype,'src');
-hp(HTMLVideoElement.prototype,'poster');
-hp(HTMLAudioElement.prototype,'src');
-hp(HTMLSourceElement.prototype,'src');
-hp(HTMLEmbedElement.prototype,'src');
-hp(HTMLInputElement.prototype,'src');
-hp(HTMLLinkElement.prototype,'href');
-hp(HTMLFormElement.prototype,'action');
-hp(HTMLObjectElement.prototype,'data');
-
-/* ---- CSSStyleDeclaration interception: element.style.backgroundImage = "url(...)" ---- */
-try{
-  var _setp=CSSStyleDeclaration.prototype.setProperty;
-  CSSStyleDeclaration.prototype.setProperty=function(p,v,prio){
-    if(p==="background-image"||p==="background"||p==="list-style-image"||p==="border-image"||p==="mask"||p==="mask-image")v=rewriteCssText(v);
-    return _setp.call(this,p,v,prio);
-  };
-
-  var bgDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'backgroundImage');
-  if(bgDesc&&bgDesc.set){
-    var _bgSet=bgDesc.set;
-    Object.defineProperty(CSSStyleDeclaration.prototype,'backgroundImage',{
-      get:bgDesc.get,set:function(v){return _bgSet.call(this,rewriteCssText(v))},configurable:true
-    });
-  }
-  var bgDesc2=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'background');
-  if(bgDesc2&&bgDesc2.set){
-    var _bgSet2=bgDesc2.set;
-    Object.defineProperty(CSSStyleDeclaration.prototype,'background',{
-      get:bgDesc2.get,set:function(v){return _bgSet2.call(this,rewriteCssText(v))},configurable:true
-    });
-  }
-  var cssTextDesc=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'cssText');
-  if(cssTextDesc&&cssTextDesc.set){
-    var _cssSet=cssTextDesc.set;
-    Object.defineProperty(CSSStyleDeclaration.prototype,'cssText',{
-      get:cssTextDesc.get,set:function(v){return _cssSet.call(this,rewriteCssText(v))},configurable:true
-    });
-  }
-}catch(e){}
+hookProp(HTMLAnchorElement.prototype,'href');
+hookProp(HTMLImageElement.prototype,'src');
+hookProp(HTMLImageElement.prototype,'srcset');
+hookProp(HTMLScriptElement.prototype,'src');
+hookProp(HTMLIFrameElement.prototype,'src');
+hookProp(HTMLVideoElement.prototype,'src');
+hookProp(HTMLVideoElement.prototype,'poster');
+hookProp(HTMLAudioElement.prototype,'src');
+hookProp(HTMLSourceElement.prototype,'src');
+hookProp(HTMLEmbedElement.prototype,'src');
+hookProp(HTMLInputElement.prototype,'src');
+hookProp(HTMLLinkElement.prototype,'href');
+hookProp(HTMLFormElement.prototype,'action');
+hookProp(HTMLObjectElement.prototype,'data');
 
 /* ---- form submit ---- */
 var _submit=HTMLFormElement.prototype.submit;
 HTMLFormElement.prototype.submit=function(){
   var f=this,a=f.action||U;
-  try{var b=new URL(a,U);f.action=P+"?url="+encodeURIComponent(b.href)}catch(e){}
+  try{
+    var b=new URL(a,U);
+    f.action=P+"?url="+encodeURIComponent(b.href);
+  }catch(e){}
   return _submit.call(f)
 };
 
@@ -143,44 +101,18 @@ function fix(e){
   if(e.hasAttribute&&e.hasAttribute("href"))e.setAttribute("href",$(e.getAttribute("href")));
   if(e.hasAttribute&&e.hasAttribute("srcset"))e.setAttribute("srcset",$(e.getAttribute("srcset")));
   if(e.hasAttribute&&e.hasAttribute("poster"))e.setAttribute("poster",$(e.getAttribute("poster")));
-  if(e.hasAttribute&&e.hasAttribute("style"))e.setAttribute("style",rewriteCssText(e.getAttribute("style")));
 }
-function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity],[style]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
+function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
 
 window.addEventListener("load",function(){
   fixAll(document.documentElement);
-  new MutationObserver(function(ms){
-    ms.forEach(function(m){
-      m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)});
-      if(m.type==="attributes"&&m.target.nodeType===1){
-        var t=m.target;
-        if(t.hasAttribute&&t.hasAttribute("integrity"))t.removeAttribute("integrity");
-        if(t.hasAttribute&&t.hasAttribute("src"))t.setAttribute("src",$(t.getAttribute("src")));
-        if(t.hasAttribute&&t.hasAttribute("srcset"))t.setAttribute("srcset",$(t.getAttribute("srcset")));
-        if(t.hasAttribute&&t.hasAttribute("poster"))t.setAttribute("poster",$(t.getAttribute("poster")));
-        if(t.hasAttribute&&t.hasAttribute("href"))t.setAttribute("href",$(t.getAttribute("href")));
-        if(t.hasAttribute&&t.hasAttribute("style"))t.setAttribute("style",rewriteCssText(t.getAttribute("style")));
-      }
-    });
-  }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["src","href","srcset","poster","integrity","style"]})
+  new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)})})}).observe(document.documentElement,{childList:true,subtree:true})
 });
 
 window.addEventListener("error",function(e){
   var t=e.target;
   if(t&&t.tagName==="SCRIPT"&&t.src&&!t.__p){t.__p=true;t.src=$(t.src)}
 },true);
-
-/* ---- regular URL scan (catch late-loaded lazy images etc) ---- */
-var _scanned=new Set();
-function scanAll(){
-  document.querySelectorAll("img[loading=lazy],img[data-src],img[data-original],[style*='url(']").forEach(function(el){
-    var hash=el.outerHTML.substring(0,100);
-    if(_scanned.has(hash))return;
-    _scanned.add(hash);
-    fix(el);
-  });
-}
-setInterval(scanAll,2000);
 
 })();
 `;
