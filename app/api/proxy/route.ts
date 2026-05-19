@@ -6,7 +6,6 @@ const UA =
 const CLIENT_JS = `
 (function(){
 var P="/api/proxy";
-var O=window.location.origin;
 var U=new URL(window.location.href).searchParams.get("url")||"";
 if(U&&!U.startsWith("http"))U="https://"+U;
 
@@ -14,7 +13,7 @@ function $(p){
   if(!p)return p;
   try{if(typeof p==="string"&&/^(data:|javascript:|mailto:|#|blob:|ws:|about:|chrome|edge)/i.test(p))return p}catch(e){}
   if(typeof p==="string"&&p.indexOf(P)!==-1)return p;
-  try{return O+P+"?url="+encodeURIComponent(new URL(p,U).href)}catch(e){return p}
+  try{return P+"?url="+encodeURIComponent(new URL(p,U).href)}catch(e){return p}
 }
 
 /* ---- network ---- */
@@ -67,7 +66,7 @@ HTMLFormElement.prototype.submit=function(){
   var f=this,a=f.action||U;
   try{
     var b=new URL(a,U);
-    f.action=O+P+"?url="+encodeURIComponent(b.href);
+    f.action=P+"?url="+encodeURIComponent(b.href);
   }catch(e){}
   return _submit.call(f)
 };
