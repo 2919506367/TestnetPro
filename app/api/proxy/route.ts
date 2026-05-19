@@ -16,6 +16,16 @@ function $(p){
   try{return P+"?url="+encodeURIComponent(new URL(p,U).href)}catch(e){return p}
 }
 
+function cssUrlT(txt){
+  if(!txt||typeof txt!=="string")return txt;
+  return txt.replace(/url\\(\\s*(["']?)([^"')]+)\\1\\)/gi,function(m,q,rw){
+    var rr=rw.trim();
+    if(/^(data:|#|blob:)/i.test(rr))return m;
+    if(rr.indexOf(P)!==-1)return m;
+    try{return"url("+q+$(new URL(rr,U).href)+q+")"}catch(e2){return m}
+  });
+}
+
 /* ---- network ---- */
 var _o=XMLHttpRequest.prototype.open;
 XMLHttpRequest.prototype.open=function(m,a,b,u,p){arguments[1]=$(a);return _o.apply(this,arguments)};
@@ -29,7 +39,11 @@ window.location.replace=function(u){_replace($(u))};
 
 /* ---- setAttribute ---- */
 var _sa=Element.prototype.setAttribute;
-Element.prototype.setAttribute=function(n,v){if(n==="src"||n==="href"||n==="srcset")v=$(v);return _sa.call(this,n,v)};
+Element.prototype.setAttribute=function(n,v){
+  if(n==="src"||n==="href"||n==="srcset"||n==="poster"||n==="data"||n==="action")v=$(v);
+  if(n==="style")v=cssUrlT(v);
+  return _sa.call(this,n,v);
+};
 
 /* ---- history ---- */
 var _push=History.prototype.pushState;
@@ -101,12 +115,29 @@ function fix(e){
   if(e.hasAttribute&&e.hasAttribute("href"))e.setAttribute("href",$(e.getAttribute("href")));
   if(e.hasAttribute&&e.hasAttribute("srcset"))e.setAttribute("srcset",$(e.getAttribute("srcset")));
   if(e.hasAttribute&&e.hasAttribute("poster"))e.setAttribute("poster",$(e.getAttribute("poster")));
+  if(e.hasAttribute&&e.hasAttribute("style"))e.setAttribute("style",cssUrlT(e.getAttribute("style")));
 }
-function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
+
+function fixAttr(t){
+  if(t.nodeType!==1||!t.hasAttribute)return;
+  if(t.hasAttribute("integrity"))t.removeAttribute("integrity");
+  if(t.hasAttribute("src"))t.setAttribute("src",$(t.getAttribute("src")));
+  if(t.hasAttribute("srcset"))t.setAttribute("srcset",$(t.getAttribute("srcset")));
+  if(t.hasAttribute("poster"))t.setAttribute("poster",$(t.getAttribute("poster")));
+  if(t.hasAttribute("href"))t.setAttribute("href",$(t.getAttribute("href")));
+  if(t.hasAttribute("style"))t.setAttribute("style",cssUrlT(t.getAttribute("style")));
+}
+
+function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity],[style]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
 
 window.addEventListener("load",function(){
   fixAll(document.documentElement);
-  new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)})})}).observe(document.documentElement,{childList:true,subtree:true})
+  new MutationObserver(function(ms){
+    ms.forEach(function(m){
+      m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)});
+      if(m.type==="attributes")fixAttr(m.target);
+    });
+  }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["src","href","srcset","poster","integrity","style"]})
 });
 
 window.addEventListener("error",function(e){
