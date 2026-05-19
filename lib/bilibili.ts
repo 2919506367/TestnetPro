@@ -50,17 +50,17 @@ export function formatPubdate(ts: number): string {
   return `${y}-${m}-${day}`;
 }
 
-function ensureHttps(url: string): string {
-  if (url.startsWith("https://")) return url;
-  if (url.startsWith("//")) return "https:" + url;
-  if (url.startsWith("http://")) return url.replace("http://", "https://");
-  return url;
-}
-
 export function proxyUrl(rawUrl: string): string {
   if (!rawUrl) return "";
-  if (rawUrl.includes("hdslb.com")) return ensureHttps(rawUrl);
   return `/api/bili-proxy?url=${encodeURIComponent(rawUrl)}`;
+}
+
+export const IMG_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90' viewBox='0 0 160 90'%3E%3Crect width='160' height='90' fill='%23333'/%3E%3Ctext x='80' y='50' text-anchor='middle' fill='%23666' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E";
+
+export function imgOnError(e: React.SyntheticEvent<HTMLImageElement>) {
+  const el = e.currentTarget;
+  el.onerror = null;
+  el.src = IMG_PLACEHOLDER;
 }
 
 export function shuffleArray<T>(arr: T[], seed: number): T[] {

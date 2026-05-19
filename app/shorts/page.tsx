@@ -6,7 +6,7 @@ import {
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
   Search, X, User, RefreshCw, ChevronRight, ChevronLeft, Gauge, Settings2, Clock,
 } from "lucide-react";
-import { proxyUrl, formatPubdate } from "@/lib/bilibili";
+import { proxyUrl, formatPubdate, imgOnError } from "@/lib/bilibili";
 import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "@/app/bilibili/components/DanmakuLayer";
 import CommentSection from "@/app/bilibili/components/CommentSection";
 
@@ -305,7 +305,7 @@ function ShortsApp() {
               <h2 className="text-white text-sm font-semibold leading-snug mb-2">{activeVideo.title}</h2>
               <button onClick={() => { setShowUserProfile(true); closeComments(); }} className="flex items-center gap-2 mb-3 hover:bg-white/5 rounded-lg p-1.5 -ml-1.5 transition-all w-full text-left">
                 <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 overflow-hidden">
-                  {activeVideo.authorFace ? <img src={proxyUrl(activeVideo.authorFace)} alt="" className="w-full h-full object-cover" /> : <User className="w-4 h-4 m-2 text-white/40" />}
+                  {activeVideo.authorFace ? <img src={proxyUrl(activeVideo.authorFace)} alt="" className="w-full h-full object-cover" onError={imgOnError} /> : <User className="w-4 h-4 m-2 text-white/40" />}
                 </div>
                 <span className="text-white/80 text-xs font-medium hover:text-white">{activeVideo.author}</span>
               </button>
@@ -435,7 +435,7 @@ function VideoCard({ video, isActive, isNearby }: {
         <div className="absolute inset-0 bg-black" />
       ) : (
         <>
-          <img src={proxyUrl(video.cover)} alt={video.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+          <img src={proxyUrl(video.cover)} alt={video.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={imgOnError} />
           <div className="absolute inset-0 bg-black/40" />
           <div className="absolute inset-0 flex items-center justify-center">
             <Play className="w-12 h-12 text-white/70" />
@@ -625,7 +625,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danm
   if (!resolved) {
     return (
       <div className="fixed inset-0 z-40 pointer-events-none">
-        <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+        <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" onError={imgOnError} />
         <div className="absolute inset-0 bg-black/20" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
           <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
@@ -689,7 +689,7 @@ function PlayerOverlay({ video, index, muted, forceProxy, qn, playbackRate, danm
       {/* Loading overlay with progress bar */}
       {status === "loading" && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+          <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" onError={imgOnError} />
           <div className="absolute inset-0 bg-black/40" />
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-3 border-white/20 border-t-white animate-spin" />
@@ -780,7 +780,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
                 <a key={i} href={`https://www.bilibili.com/video/${item.bvid}`} target="_blank" rel="noopener noreferrer" onClick={() => onSelectVideo(item.bvid)}
                   className="flex gap-3 p-2 rounded-xl hover:bg-white/5 transition-all"
                 >
-                  <img src={proxyUrl(item.cover)} alt="" className="w-28 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" />
+                  <img src={proxyUrl(item.cover)} alt="" className="w-28 h-20 object-cover rounded-lg flex-shrink-0" loading="lazy" onError={imgOnError} />
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white/90 text-sm line-clamp-2 mb-1">{item.title}</h3>
                     <p className="text-white/40 text-xs">{item.author} · {item.playCount}播放 · {item.duration}</p>
@@ -790,7 +790,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
                 <button key={i} onClick={() => onSelectUser(item.mid)}
                   className="flex gap-3 p-2 rounded-xl hover:bg-white/5 transition-all w-full text-left"
                 >
-                  <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0" />
+                  <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0" onError={imgOnError} />
                   <div className="flex-1 min-w-0">
                     <h3 className="text-white/90 text-sm">{item.name}</h3>
                     <p className="text-white/40 text-xs">{item.followerCount}粉丝 · {item.videoCount}视频</p>
@@ -838,7 +838,7 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
         ) : profile ? (
           <>
             <div className="flex items-center gap-4 mb-4">
-              <img src={proxyUrl(profile.face)} alt="" className="w-16 h-16 rounded-full" />
+              <img src={proxyUrl(profile.face)} alt="" className="w-16 h-16 rounded-full" onError={imgOnError} />
               <div>
                 <h2 className="text-white text-lg font-semibold">{profile.name}</h2>
                 <p className="text-white/50 text-xs mt-1">{profile.followerCount}粉丝 · {profile.videoCount}视频</p>
@@ -852,7 +852,7 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
               <div className="grid grid-cols-2 gap-2">
                 {videos.map((v) => (
                   <a key={v.id} href={`https://www.bilibili.com/video/${v.bvid}`} target="_blank" rel="noopener noreferrer" onClick={onSelectVideo} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all">
-                    <img src={proxyUrl(v.cover)} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" />
+                    <img src={proxyUrl(v.cover)} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" onError={imgOnError} />
                     <div className="p-2">
                       <h4 className="text-white/80 text-xs line-clamp-2 mb-1">{v.title}</h4>
                       <p className="text-white/30 text-[10px]">{v.playCount}播放 · {v.duration}</p>

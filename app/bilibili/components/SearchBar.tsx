@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Search, X, Loader2, Play, User } from "lucide-react";
+import { proxyUrl, imgOnError } from "@/lib/bilibili";
 
 interface SearchVideoResult {
   bvid: string; aid: number; cid: number;
@@ -179,7 +180,7 @@ export default function SearchBar({
                       className={`flex gap-3 p-2 rounded-xl ${hoverBg} transition-all w-full text-left`}
                     >
                       <div className="relative flex-shrink-0 w-28 h-20 rounded-lg overflow-hidden bg-gray-800">
-                        <img src={(item as SearchVideoResult).cover} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        <img src={proxyUrl((item as SearchVideoResult).cover)} alt="" className="w-full h-full object-cover" loading="lazy" onError={imgOnError} />
                         <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[9px] px-1 py-0.5 rounded">
                           {(item as SearchVideoResult).duration}
                         </span>
@@ -198,7 +199,7 @@ export default function SearchBar({
                       }}
                       className={`flex gap-3 p-2 rounded-xl ${hoverBg} transition-all w-full text-left`}
                     >
-                      <img src={(item as SearchUserResult).face} alt="" className="w-10 h-10 rounded-full flex-shrink-0 bg-gray-300" />
+                      <img src={proxyUrl((item as SearchUserResult).face)} alt="" className="w-10 h-10 rounded-full flex-shrink-0 bg-gray-300" onError={imgOnError} />
                       <div className="flex-1 min-w-0">
                         <h3 className={`${textColor} text-sm font-medium`}>{(item as SearchUserResult).name}</h3>
                         <p className={`${subtitleColor} text-xs`}>{(item as SearchUserResult).followerCount}粉丝 · {(item as SearchUserResult).videoCount}视频</p>

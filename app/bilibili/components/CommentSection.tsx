@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Heart, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { proxyUrl } from "@/lib/bilibili";
+import { proxyUrl, imgOnError } from "@/lib/bilibili";
 
 interface CommentItem {
   rpid: number; content: string; author: string;
@@ -149,6 +149,7 @@ export default function CommentSection({
             alt=""
             className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
             loading="lazy"
+            onError={imgOnError}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
@@ -186,6 +187,7 @@ export default function CommentSection({
                       alt=""
                       className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
                       loading="lazy"
+                      onError={imgOnError}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">

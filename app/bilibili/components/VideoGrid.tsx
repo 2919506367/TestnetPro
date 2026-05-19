@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Play, RefreshCw, Eye, Heart, MessageCircle, Clock } from "lucide-react";
-import { proxyUrl, formatPubdate } from "@/lib/bilibili";
+import { proxyUrl, formatPubdate, imgOnError } from "@/lib/bilibili";
 
 interface VideoItem {
   id: string; bvid: string; aid: number; cid: number;
@@ -127,6 +127,7 @@ export default function VideoGrid({
                 alt={video.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 loading="lazy"
+                onError={imgOnError}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                 <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-90 transition-all drop-shadow-lg" />
@@ -153,7 +154,7 @@ export default function VideoGrid({
               <div className="flex items-center gap-2 mt-2">
                 <div className="w-5 h-5 rounded-full bg-gray-300 overflow-hidden flex-shrink-0">
                   {video.authorFace && (
-                    <img src={proxyUrl(video.authorFace)} alt="" className="w-full h-full object-cover" />
+                    <img src={proxyUrl(video.authorFace)} alt="" className="w-full h-full object-cover" onError={imgOnError} />
                   )}
                 </div>
                 <span className={`text-[11px] ${textSecondary} truncate`}>{video.author}</span>
