@@ -25,9 +25,10 @@ function $(p){
   window.open=function(u,n,f){ return _w($(u),n,f); };
   var _s=HTMLElement.prototype.setAttribute;
   HTMLElement.prototype.setAttribute=function(n,v){ if(n==="src"||n==="href") v=$(v); return _s.call(this,n,v); };
-  var _h=History.prototype.pushState;
-  History.prototype.pushState=function(s,t,u){ return _h.apply(this,[s,t,$(u)]); };
-  History.prototype.replaceState=function(s,t,u){ return _h.apply(this,[s,t,$(u)]); };
+  var _push=History.prototype.pushState;
+  History.prototype.pushState=function(s,t,u){ return _push.apply(this,[s,t,$(u)]); };
+  var _replace=History.prototype.replaceState;
+  History.prototype.replaceState=function(s,t,u){ return _replace.apply(this,[s,t,$(u)]); };
 })();
 
 (function(){
