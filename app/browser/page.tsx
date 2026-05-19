@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
-export default function ProxyPage() {
+export default function BrowserPage() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [proxyUrl, setProxyUrl] = useState<string | null>(null);
@@ -31,14 +31,6 @@ export default function ProxyPage() {
     if (e.key === "Enter") doNavigate();
   };
 
-  const iframeGoBack = () => {
-    try { iframeRef.current?.contentWindow?.history.back(); } catch {}
-  };
-
-  const iframeGoForward = () => {
-    try { iframeRef.current?.contentWindow?.history.forward(); } catch {}
-  };
-
   const iframeRefresh = () => {
     if (proxyUrl) {
       setLoading(true);
@@ -58,27 +50,11 @@ export default function ProxyPage() {
     <div className="h-screen bg-[#111] flex flex-col">
       <header className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06] bg-[#1a1a1a] shrink-0">
         <button
-          onClick={() => router.push("/bilibili")}
+          onClick={() => router.push("/drive")}
           className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors shrink-0"
-          title="返回"
+          title="返回网盘"
         >
           <ArrowLeft className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={iframeGoBack}
-          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors shrink-0"
-          title="后退"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
-
-        <button
-          onClick={iframeGoForward}
-          className="p-1.5 rounded-lg hover:bg-white/10 text-white/40 hover:text-white/70 transition-colors shrink-0"
-          title="前进"
-        >
-          <ChevronRight className="w-4 h-4" />
         </button>
 
         <button
@@ -96,7 +72,7 @@ export default function ProxyPage() {
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="输入网址..."
+            placeholder="输入网址，如 bing.com ..."
             className="flex-1 bg-transparent outline-none text-white/85 text-sm placeholder:text-white/15"
           />
           {url && (
@@ -127,7 +103,7 @@ export default function ProxyPage() {
         {!proxyUrl ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/10 bg-[#111]">
             <Search className="w-16 h-16" />
-            <p className="text-sm text-white/15">输入网址，通过服务器代理访问</p>
+            <p className="text-sm text-white/15">输入网址，通过 VPS 代理访问</p>
             <p className="text-xs text-white/8">绕过网络限制，畅览全网</p>
           </div>
         ) : (
@@ -150,7 +126,7 @@ export default function ProxyPage() {
       {proxyUrl && (
         <div className="flex items-center gap-3 px-4 py-1.5 border-t border-white/[0.06] bg-[#1a1a1a] text-[11px] text-white/25 shrink-0">
           <span className="truncate max-w-[400px]">{pageTitle || url}</span>
-          <span className="ml-auto opacity-40">VPS代理模式</span>
+          <span className="ml-auto opacity-40">VPS 代理模式</span>
         </div>
       )}
     </div>

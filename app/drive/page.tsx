@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Cloud, Search, LogOut, FolderOpen, Files, Clock, Trash2, Plus,
   ChevronRight, HardDrive, FolderPlus, Home, HardDrive as HardDriveIcon,
-  Crown, Shield, Sparkles, MessageCircle, Bot, Smile, Play
+  Crown, Shield, Sparkles, MessageCircle, Bot, Smile, Play, Globe
 } from "lucide-react";
 import UploadArea from "@/components/UploadArea";
 import FileList from "@/components/FileList";
@@ -201,6 +201,9 @@ function DrivePage() {
           </button>
           <button onClick={() => router.push("/bilibili")} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
             <Play className="w-4.5 h-4.5 flex-shrink-0 text-pink-500" /> B站
+          </button>
+          <button onClick={() => router.push("/browser")} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
+            <Globe className="w-4.5 h-4.5 flex-shrink-0 text-emerald-500" /> 超级浏览器
           </button>
           <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-gray-500 dark:text-gray-400 cursor-not-allowed" disabled>
             <Clock className="w-4.5 h-4.5 flex-shrink-0 text-gray-300 dark:text-gray-600" /> 最近上传

@@ -42,9 +42,7 @@ export async function GET(request: NextRequest) {
   if (!targetUrl) return new NextResponse("缺少 url 参数", { status: 400 });
 
   let decoded: string;
-  try {
-    decoded = decodeURIComponent(targetUrl);
-  } catch {
+  try { decoded = decodeURIComponent(targetUrl); } catch {
     return new NextResponse("url 编码错误", { status: 400 });
   }
 
@@ -52,11 +50,11 @@ export async function GET(request: NextRequest) {
     const upstreamRes = await fetch(decoded, {
       headers: {
         "User-Agent": UA,
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       },
       redirect: "manual",
+      signal: AbortSignal.timeout(15000),
     });
 
     const status = upstreamRes.status;
@@ -65,9 +63,7 @@ export async function GET(request: NextRequest) {
     if (status >= 300 && status < 400) {
       let loc = upstreamRes.headers.get("location") || "";
       if (loc) {
-        try {
-          loc = new URL(loc, decoded).href;
-        } catch {}
+        try { loc = new URL(loc, decoded).href; } catch {}
         return NextResponse.redirect(
           `${proxyBase}?url=${encodeURIComponent(loc)}`,
           status === 301 ? 301 : 302
@@ -83,16 +79,16 @@ export async function GET(request: NextRequest) {
     for (const h of ["content-type", "content-disposition", "cache-control", "etag", "last-modified", "expires", "set-cookie", "vary"]) {
       const v = upstreamRes.headers.get(h);
       if (v) {
-        if (h === "set-cookie") {
-          responseHeaders.append("Set-Cookie", v);
-        } else {
-          responseHeaders.set(h, v);
-        }
+        if (h === "set-cookie") responseHeaders.append("Set-Cookie", v);
+        else responseHeaders.set(h, v);
       }
     }
 
     if (isHTML) {
       let html = await upstreamRes.text();
+      html = html.replace(/<head\b[^>]*>/i, (match) => {
+        return `${match}\n<base href="${decoded}">`;
+      });
       html = rewriteUrls(html, proxyBase);
       responseHeaders.set("Content-Type", "text/html; charset=utf-8");
       responseHeaders.delete("content-encoding");
@@ -116,10 +112,7 @@ export async function GET(request: NextRequest) {
     if (!responseHeaders.has("content-type"))
       responseHeaders.set("Content-Type", "application/octet-stream");
 
-    return new NextResponse(upstreamRes.body, {
-      status,
-      headers: responseHeaders,
-    });
+    return new NextResponse(upstreamRes.body, { status, headers: responseHeaders });
   } catch {
     return new NextResponse("目标网站无法访问", { status: 502 });
   }
