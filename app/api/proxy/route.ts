@@ -48,25 +48,30 @@ export async function GET(request: NextRequest) {
 
     const ct = upstreamRes.headers.get("content-type") || "";
 
-    const responseHeaders = new Headers();
-    ["content-type", "content-length", "content-disposition", "cache-control", "etag", "last-modified", "expires", "content-encoding"].forEach((h) => {
-      const v = upstreamRes.headers.get(h);
-      if (v) responseHeaders.set(h, v);
-    });
-
     if (ct.includes("text/html") || ct.includes("application/xhtml")) {
       let html = await upstreamRes.text();
       html = rewriteUrls(html, proxyBase);
-      responseHeaders.set("Content-Type", "text/html; charset=utf-8");
-      return new NextResponse(html, { status: 200, headers: responseHeaders });
+      return new NextResponse(html, {
+        status: 200,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" },
+      });
     }
 
     if (ct.includes("text/css")) {
       let css = await upstreamRes.text();
       css = rewriteCssUrls(css, proxyBase);
-      responseHeaders.set("Content-Type", "text/css; charset=utf-8");
-      return new NextResponse(css, { status: 200, headers: responseHeaders });
+      return new NextResponse(css, {
+        status: 200,
+        headers: { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=300" },
+      });
     }
+
+    const responseHeaders = new Headers();
+    ["content-type", "content-length", "content-disposition", "cache-control", "etag", "last-modified", "expires"].forEach((h) => {
+      const v = upstreamRes.headers.get(h);
+      if (v) responseHeaders.set(h, v);
+    });
+    if (!responseHeaders.has("content-type")) responseHeaders.set("Content-Type", "application/octet-stream");
 
     return new NextResponse(upstreamRes.body, {
       status: upstreamRes.status,
