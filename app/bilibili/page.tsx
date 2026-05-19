@@ -11,7 +11,6 @@ import { formatPubdate } from "@/lib/bilibili";
 import BiliImage from "./components/BiliImage";
 import VideoGrid from "./components/VideoGrid";
 import VideoPlayerModal from "./components/VideoPlayerModal";
-import BrowserPanel from "./components/BrowserPanel";
 import { DanmakuSettings, DANMAKU_DEFAULTS } from "./components/DanmakuLayer";
 
 interface VideoItem {
@@ -52,7 +51,6 @@ function BilibiliApp() {
   const [playingVideo, setPlayingVideo] = useState<PlayVideo | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showUserProfile, setShowUserProfile] = useState<number | null>(null);
-  const [showBrowser, setShowBrowser] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchType, setSearchType] = useState<"video" | "user">("video");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -211,7 +209,7 @@ function BilibiliApp() {
               短视频
             </button>
             <button
-              onClick={() => setShowBrowser(true)}
+              onClick={() => router.push("/proxy")}
               className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${dark ? "bg-white/5 hover:bg-white/10 text-white/60 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
             >
               <Globe className="w-3.5 h-3.5" />
@@ -332,10 +330,6 @@ function BilibiliApp() {
           onPlayVideo={(v) => { setPlayingVideo(v); setShowUserProfile(null); }}
           dark={dark}
         />
-      )}
-
-      {showBrowser && (
-        <BrowserPanel onClose={() => setShowBrowser(false)} dark={dark} />
       )}
     </div>
   );
