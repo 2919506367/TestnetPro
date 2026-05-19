@@ -5,7 +5,8 @@ import {
   Play, Pause, Volume2, VolumeX, X, ExternalLink, Settings2,
   AlertCircle, ChevronRight, ChevronLeft, Shield, ShieldOff, Gauge,
 } from "lucide-react";
-import { proxyUrl, imgOnError } from "@/lib/bilibili";
+import { proxyUrl } from "@/lib/bilibili";
+import BiliImage from "./BiliImage";
 import DanmakuLayer, { DanmakuSettings } from "./DanmakuLayer";
 import CommentSection from "./CommentSection";
 
@@ -229,7 +230,7 @@ export default function VideoPlayerModal({
         {/* Resolving overlay */}
         {phase === "resolving" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20">
-            <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" onError={imgOnError} />
+            <BiliImage rawUrl={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-40" />
             <div className="absolute inset-0 bg-black/50" />
             <div className="w-10 h-10 rounded-full border-3 border-white/30 border-t-white animate-spin relative z-10" />
             <p className="text-white/60 text-sm mt-4 relative z-10">获取播放源...</p>
@@ -261,7 +262,7 @@ export default function VideoPlayerModal({
         {/* Error overlay */}
         {phase === "error" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20 px-4">
-            <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" onError={imgOnError} />
+            <BiliImage rawUrl={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
             <div className="absolute inset-0 bg-black/60" />
             <AlertCircle className="w-12 h-12 text-white/60 relative" />
             <p className="text-white/60 text-sm mt-3 relative">播放失败</p>
@@ -287,7 +288,7 @@ export default function VideoPlayerModal({
         {/* Fallback */}
         {phase === "fallback" && (
           <div className="absolute inset-0 flex flex-col items-center justify-center z-20 px-4 text-center">
-            <img src={proxyUrl(video.cover)} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" onError={imgOnError} />
+            <BiliImage rawUrl={video.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-20" />
             <div className="absolute inset-0 bg-black/70" />
             <AlertCircle className="w-12 h-12 text-amber-400/80 relative" />
             <p className="text-white/70 text-base font-medium mt-3 relative">该视频暂无播放源</p>
@@ -321,7 +322,7 @@ export default function VideoPlayerModal({
                 className="flex items-center gap-2 hover:bg-white/10 rounded-full pr-2 transition-colors"
                 title="查看主页"
               >
-                <img src={proxyUrl(video.authorFace)} alt="" className="w-5 h-5 rounded-full bg-gray-500" onError={imgOnError} />
+                <BiliImage rawUrl={video.authorFace} alt="" className="w-5 h-5 rounded-full bg-gray-500" />
                 <span className="text-white/70 text-xs">{video.author}</span>
               </button>
             </div>
@@ -446,7 +447,7 @@ export default function VideoPlayerModal({
                 className="flex items-center gap-3 hover:bg-white/5 rounded-lg p-1 -ml-1 transition-colors"
                 title="查看主页"
               >
-                <img src={proxyUrl(video.authorFace)} alt="" className="w-8 h-8 rounded-full bg-gray-300" onError={imgOnError} />
+                <BiliImage rawUrl={video.authorFace} alt="" className="w-8 h-8 rounded-full bg-gray-300" />
                 <span className={`text-xs font-medium ${dark ? "text-white/70" : "text-gray-700"}`}>{video.author}</span>
               </button>
             </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Heart, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
-import { proxyUrl, imgOnError } from "@/lib/bilibili";
+import BiliImage from "./BiliImage";
 
 interface CommentItem {
   rpid: number; content: string; author: string;
@@ -144,12 +144,11 @@ export default function CommentSection({
 
       {comments.map((c) => (
         <div key={c.rpid} className={`flex gap-2.5 py-3 border-b ${borderColor}`}>
-          <img
-            src={proxyUrl(c.authorFace)}
+          <BiliImage
+            rawUrl={c.authorFace}
             alt=""
             className="w-7 h-7 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
             loading="lazy"
-            onError={imgOnError}
           />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5">
@@ -182,12 +181,11 @@ export default function CommentSection({
               <div className={`mt-2 ${replyBg} rounded-lg p-2 space-y-2`}>
                 {replyData[c.rpid].map((r) => (
                   <div key={r.rpid} className="flex gap-2">
-                    <img
-                      src={proxyUrl(r.authorFace)}
+                    <BiliImage
+                      rawUrl={r.authorFace}
                       alt=""
                       className="w-5 h-5 rounded-full flex-shrink-0 mt-0.5 bg-gray-300"
                       loading="lazy"
-                      onError={imgOnError}
                     />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-0.5">

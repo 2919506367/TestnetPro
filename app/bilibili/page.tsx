@@ -7,7 +7,8 @@ import {
   Play, Search, X, Loader2,
   Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff, Clock,
 } from "lucide-react";
-import { proxyUrl, formatPubdate, imgOnError } from "@/lib/bilibili";
+import { formatPubdate } from "@/lib/bilibili";
+import BiliImage from "./components/BiliImage";
 import VideoGrid from "./components/VideoGrid";
 import VideoPlayerModal from "./components/VideoPlayerModal";
 import { DanmakuSettings, DANMAKU_DEFAULTS } from "./components/DanmakuLayer";
@@ -247,7 +248,7 @@ function BilibiliApp() {
                   className={`flex gap-3 p-2 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
                   <div className="relative flex-shrink-0 w-44 h-28 sm:w-56 sm:h-32 rounded-lg overflow-hidden bg-gray-700">
-                    <img src={proxyUrl(item.cover)} alt={item.title} className="w-full h-full object-cover" loading="lazy" onError={imgOnError} />
+                    <BiliImage rawUrl={item.cover} alt={item.title} className="w-full h-full object-cover" loading="lazy" />
                     <span className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded">
                       {item.duration}
                     </span>
@@ -277,7 +278,7 @@ function BilibiliApp() {
                   onClick={() => handleViewUser(item.mid)}
                   className={`flex gap-3 p-3 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
-                  <img src={proxyUrl(item.face)} alt="" className="w-12 h-12 rounded-full flex-shrink-0 bg-gray-300" onError={imgOnError} />
+                  <BiliImage rawUrl={item.face} alt="" className="w-12 h-12 rounded-full flex-shrink-0 bg-gray-300" />
                   <div className="flex-1 min-w-0">
                     <h3 className={`${textPrimary} text-sm font-medium`}>{item.name}</h3>
                     <p className={`${textSecondary} text-xs mt-0.5`}>{item.followerCount}粉丝 · {item.videoCount}视频</p>
@@ -370,12 +371,11 @@ function VideoGridMore({
             className={`${cardBg} rounded-xl overflow-hidden cursor-pointer transition-all duration-200 shadow-sm ${dark ? "shadow-black/20" : "shadow-gray-200/50"} group`}
           >
             <div className="aspect-video relative overflow-hidden">
-              <img
-                src={proxyUrl(video.cover)}
+              <BiliImage
+                rawUrl={video.cover}
                 alt={video.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 loading="lazy"
-                onError={imgOnError}
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all flex items-center justify-center">
                 <Play className="w-10 h-10 text-white opacity-0 group-hover:opacity-90 transition-all drop-shadow-lg" />
@@ -497,7 +497,7 @@ function UserProfileModal({
         ) : profile ? (
           <>
             <div className="flex items-center gap-4 mb-6">
-              <img src={proxyUrl(profile.face)} alt="" className="w-16 h-16 rounded-full bg-gray-300" onError={imgOnError} />
+              <BiliImage rawUrl={profile.face} alt="" className="w-16 h-16 rounded-full bg-gray-300" />
               <div>
                 <h2 className={`text-lg font-semibold ${textPrimary}`}>{profile.name}</h2>
                 <p className={`text-xs mt-1 ${textSecondary}`}>{profile.followerCount}粉丝 · {profile.videoCount}视频</p>
@@ -552,7 +552,7 @@ function UserProfileModal({
                       className={`${cardBg} rounded-xl overflow-hidden transition-all text-left w-full`}
                     >
                       <div className="aspect-video overflow-hidden">
-                        <img src={proxyUrl(v.cover)} alt={v.title} className="w-full h-full object-cover" loading="lazy" onError={imgOnError} />
+                        <BiliImage rawUrl={v.cover} alt={v.title} className="w-full h-full object-cover" loading="lazy" />
                       </div>
                       <div className="p-2">
                         <h4 className={`text-xs line-clamp-2 mb-1 ${textPrimary}`}>{v.title}</h4>

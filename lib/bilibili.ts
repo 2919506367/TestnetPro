@@ -50,17 +50,81 @@ export function formatPubdate(ts: number): string {
   return `${y}-${m}-${day}`;
 }
 
+function ensureHttps(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("https://")) return url;
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("http://")) return url.replace("http://", "https://");
+  return url;
+}
+
+export function directUrl(rawUrl: string): string {
+  return ensureHttps(rawUrl);
+}
+
 export function proxyUrl(rawUrl: string): string {
   if (!rawUrl) return "";
   return `/api/bili-proxy?url=${encodeURIComponent(rawUrl)}`;
+}
+
+const IMG_MODE_KEY = "bili_img_mode";
+const IMG_FAIL_COUNT_KEY = "bili_img_fail_count";
+const FAIL_THRESHOLD = 3;
+
+export function getImageMode(): "direct" | "proxy" {
+  if (typeof window === "undefined") return "direct";
+  return (localStorage.getItem(IMG_MODE_KEY) as "direct" | "proxy") || "direct";
+}
+
+function recordImageFailure() {
+  if (typeof window === "undefined") return;
+  const count = (parseInt(localStorage.getItem(IMG_FAIL_COUNT_KEY) || "0", 10) || 0) + 1;
+  localStorage.setItem(IMG_FAIL_COUNT_KEY, String(count));
+  if (count >= FAIL_THRESHOLD) {
+    localStorage.setItem(IMG_MODE_KEY, "proxy");
+  }
+}
+
+function recordImageSuccess() {
+  if (typeof window === "undefined") return;
+  const count = parseInt(localStorage.getItem(IMG_FAIL_COUNT_KEY) || "0", 10) || 0;
+  if (count > 0) {
+    localStorage.setItem(IMG_FAIL_COUNT_KEY, String(Math.max(0, count - 1)));
+  }
+}
+
+function clearImageFailures() {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(IMG_FAIL_COUNT_KEY, "0");
+  localStorage.setItem(IMG_MODE_KEY, "direct");
+}
+
+export function resolveImageUrl(rawUrl: string): string {
+  if (!rawUrl) return "";
+  if (getImageMode() === "proxy") return proxyUrl(rawUrl);
+  return directUrl(rawUrl);
 }
 
 export const IMG_PLACEHOLDER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='90' viewBox='0 0 160 90'%3E%3Crect width='160' height='90' fill='%23333'/%3E%3Ctext x='80' y='50' text-anchor='middle' fill='%23666' font-size='12'%3E加载失败%3C/text%3E%3C/svg%3E";
 
 export function imgOnError(e: React.SyntheticEvent<HTMLImageElement>) {
   const el = e.currentTarget;
-  el.onerror = null;
-  el.src = IMG_PLACEHOLDER;
+  const currentSrc = el.src;
+  const rawUrl = el.getAttribute("data-raw");
+  if (!rawUrl) { el.onerror = null; el.src = IMG_PLACEHOLDER; return; }
+
+  if (currentSrc.includes("/api/bili-proxy")) {
+    el.onerror = null;
+    el.src = IMG_PLACEHOLDER;
+  } else {
+    recordImageFailure();
+    el.src = proxyUrl(rawUrl);
+  }
+}
+
+export function imgOnLoad(e: React.SyntheticEvent<HTMLImageElement>) {
+  if (e.currentTarget.src.includes("/api/bili-proxy")) return;
+  recordImageSuccess();
 }
 
 export function shuffleArray<T>(arr: T[], seed: number): T[] {
