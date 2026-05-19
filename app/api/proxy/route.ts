@@ -29,7 +29,7 @@ window.location.replace=function(u){_replace($(u))};
 
 /* ---- setAttribute ---- */
 var _sa=Element.prototype.setAttribute;
-Element.prototype.setAttribute=function(n,v){if(n==="src"||n==="href")v=$(v);return _sa.call(this,n,v)};
+Element.prototype.setAttribute=function(n,v){if(n==="src"||n==="href"||n==="srcset")v=$(v);return _sa.call(this,n,v)};
 
 /* ---- history ---- */
 var _push=History.prototype.pushState;
@@ -37,7 +37,7 @@ History.prototype.pushState=function(s,t,u){return _push.apply(this,[s,t,$(u)])}
 var _rstate=History.prototype.replaceState;
 History.prototype.replaceState=function(s,t,u){return _rstate.apply(this,[s,t,$(u)])};
 
-/* ---- direct property setters (element.href = "x") ---- */
+/* ---- direct property setters ---- */
 function hookProp(proto,prop){
   try{
     var d=Object.getOwnPropertyDescriptor(proto,prop);
@@ -49,9 +49,11 @@ function hookProp(proto,prop){
 }
 hookProp(HTMLAnchorElement.prototype,'href');
 hookProp(HTMLImageElement.prototype,'src');
+hookProp(HTMLImageElement.prototype,'srcset');
 hookProp(HTMLScriptElement.prototype,'src');
 hookProp(HTMLIFrameElement.prototype,'src');
 hookProp(HTMLVideoElement.prototype,'src');
+hookProp(HTMLVideoElement.prototype,'poster');
 hookProp(HTMLAudioElement.prototype,'src');
 hookProp(HTMLSourceElement.prototype,'src');
 hookProp(HTMLEmbedElement.prototype,'src');
@@ -97,8 +99,10 @@ function fix(e){
   if(e.hasAttribute&&e.hasAttribute("integrity"))e.removeAttribute("integrity");
   if(e.hasAttribute&&e.hasAttribute("src"))e.setAttribute("src",$(e.getAttribute("src")));
   if(e.hasAttribute&&e.hasAttribute("href"))e.setAttribute("href",$(e.getAttribute("href")));
+  if(e.hasAttribute&&e.hasAttribute("srcset"))e.setAttribute("srcset",$(e.getAttribute("srcset")));
+  if(e.hasAttribute&&e.hasAttribute("poster"))e.setAttribute("poster",$(e.getAttribute("poster")));
 }
-function fixAll(r){r.querySelectorAll("[src],[href],[integrity]").forEach(fix);fix(r);}
+function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
 
 window.addEventListener("load",function(){
   fixAll(document.documentElement);
@@ -113,16 +117,36 @@ window.addEventListener("error",function(e){
 })();
 `;
 
-function rewriteCssUrls(css: string, proxyBase: string): string {
+function rewriteCssUrls(css: string): string {
   return css.replace(
     /url\(\s*(["']?)([^"')]+)\1\s*\)/gi,
     (_full, _q, raw) => {
       const r = raw.trim();
       if (/^(data:|#|blob:)/i.test(r)) return _full;
       if (r.includes("/api/proxy")) return _full;
-      return `url('${proxyBase}?url=${encodeURIComponent(r)}')`;
+      return `url('/api/proxy?url=${encodeURIComponent(r)}')`;
     }
   );
+}
+
+function rewriteHtmlInlineUrls(html: string, baseUrl: string): string {
+  html = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (full) => {
+    return rewriteCssUrls(full);
+  });
+
+  html = html.replace(/style\s*=\s*("([^"]*)"|'([^']*)')/gi, (full: string, _q: string, dq: string, sq: string) => {
+    const raw = dq || sq || "";
+    const rewritten = raw.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (_m: string, _qq: string, r: string) => {
+      const rr = r.trim();
+      if (/^(data:|#|blob:)/i.test(rr)) return _m;
+      if (rr.includes("/api/proxy")) return _m;
+      return `url('/api/proxy?url=${encodeURIComponent(new URL(rr, baseUrl).href)}')`;
+    });
+    const q = dq !== undefined ? '"' : "'";
+    return `style=${q}${rewritten}${q}`;
+  });
+
+  return html;
 }
 
 const HOMEPAGE = `<!DOCTYPE html>
@@ -180,9 +204,7 @@ document.getElementById('url').addEventListener('keydown',function(e){ if(e.key=
 </html>`;
 
 export async function GET(request: NextRequest) {
-  const reqUrl = new URL(request.url);
-  const proxyBase = `${reqUrl.origin}/api/proxy`;
-  const targetUrl = reqUrl.searchParams.get("url");
+  const targetUrl = request.nextUrl.searchParams.get("url");
 
   if (!targetUrl) {
     return new NextResponse(HOMEPAGE, {
@@ -205,7 +227,7 @@ export async function GET(request: NextRequest) {
         "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       },
       redirect: "manual",
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(30000),
     });
 
     const status = upstreamRes.status;
@@ -215,10 +237,10 @@ export async function GET(request: NextRequest) {
       let loc = upstreamRes.headers.get("location") || "";
       if (loc) {
         try { loc = new URL(loc, decoded).href; } catch {}
-        return NextResponse.redirect(
-          `${proxyBase}?url=${encodeURIComponent(loc)}`,
-          status === 301 ? 301 : 302
-        );
+        return new Response(null, {
+          status,
+          headers: { Location: `/api/proxy?url=${encodeURIComponent(loc)}` },
+        });
       }
     }
 
@@ -233,10 +255,13 @@ export async function GET(request: NextRequest) {
 
     const isHTML = ct.includes("text/html") || ct.includes("application/xhtml");
     const isCSS = ct.includes("text/css");
+    const isImage = ct.includes("image/");
+    const isFont = ct.includes("font/");
 
     if (isHTML) {
       let html = await upstreamRes.text();
       html = html.replace(/integrity=(["'])[^"']*\1/gi, "");
+      html = rewriteHtmlInlineUrls(html, decoded);
       html = html.replace(/<head\b[^>]*>/i, () => `<head><script>${CLIENT_JS}</script>`);
       responseHeaders.set("Content-Type", "text/html; charset=utf-8");
       responseHeaders.delete("content-encoding");
@@ -250,11 +275,15 @@ export async function GET(request: NextRequest) {
 
     if (isCSS) {
       let css = await upstreamRes.text();
-      css = rewriteCssUrls(css, proxyBase);
+      css = rewriteCssUrls(css);
       responseHeaders.set("Content-Type", "text/css; charset=utf-8");
       responseHeaders.delete("content-encoding");
-      responseHeaders.set("Cache-Control", "public, max-age=300");
+      responseHeaders.set("Cache-Control", "public, max-age=86400");
       return new NextResponse(css, { status: 200, headers: responseHeaders });
+    }
+
+    if (isImage || isFont) {
+      responseHeaders.set("Cache-Control", "public, max-age=604800, immutable");
     }
 
     ["content-length", "content-encoding"].forEach((h) => {
@@ -263,6 +292,8 @@ export async function GET(request: NextRequest) {
     });
     if (!responseHeaders.has("content-type"))
       responseHeaders.set("Content-Type", "application/octet-stream");
+    if (!responseHeaders.has("cache-control"))
+      responseHeaders.set("Cache-Control", "public, max-age=3600");
 
     return new NextResponse(upstreamRes.body, { status, headers: responseHeaders });
   } catch {
