@@ -76,6 +76,21 @@ hookProp(HTMLLinkElement.prototype,'href');
 hookProp(HTMLFormElement.prototype,'action');
 hookProp(HTMLObjectElement.prototype,'data');
 
+/* ---- CSSOM style interception (lightweight: only if value contains url() ---- */
+try{
+  var _sp=CSSStyleDeclaration.prototype.setProperty;
+  CSSStyleDeclaration.prototype.setProperty=function(p,v,prio){
+    if(typeof v==="string"&&v.indexOf("url(")!==-1&&(p==="background-image"||p==="background"||p==="list-style-image"||p==="border-image"||p==="mask"||p==="mask-image"))v=cssUrlT(v);
+    return _sp.call(this,p,v,prio);
+  };
+
+  var _bg=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'backgroundImage');
+  if(_bg&&_bg.set){var obs=_bg.set;Object.defineProperty(CSSStyleDeclaration.prototype,'backgroundImage',{get:_bg.get,set:function(v){return obs.call(this,typeof v==="string"&&v.indexOf("url(")!==-1?cssUrlT(v):v)},configurable:true})}
+
+  var _bgs=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'background');
+  if(_bgs&&_bgs.set){var obs2=_bgs.set;Object.defineProperty(CSSStyleDeclaration.prototype,'background',{get:_bgs.get,set:function(v){return obs2.call(this,typeof v==="string"&&v.indexOf("url(")!==-1?cssUrlT(v):v)},configurable:true})}
+}catch(e){}
+
 /* ---- form submit ---- */
 var _submit=HTMLFormElement.prototype.submit;
 HTMLFormElement.prototype.submit=function(){
