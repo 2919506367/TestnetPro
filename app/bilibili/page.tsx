@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
 import { useTheme } from "@/contexts/ThemeContext";
 import {
-  Play, Search, X, Loader2, Globe, EyeOff,
+  Play, Search, X, Loader2, Globe,
   Eye, Heart, ArrowLeft, Smartphone, Shield, ShieldOff, Clock,
 } from "lucide-react";
 import { formatPubdate } from "@/lib/bilibili";
@@ -216,13 +216,6 @@ function BilibiliApp() {
             >
               <Globe className="w-3.5 h-3.5" />
               浏览器
-            </button>
-            <button
-              onClick={() => router.push("/proxy")}
-              className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-medium transition-all flex-shrink-0 ${dark ? "bg-white/5 hover:bg-white/10 text-white/60 border border-white/10" : "bg-gray-100 hover:bg-gray-200 text-gray-600"}`}
-            >
-              <EyeOff className="w-3.5 h-3.5" />
-              无痕
             </button>
           </div>
         </div>
