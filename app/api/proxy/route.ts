@@ -41,10 +41,10 @@ window.location.assign=function(u){_assign($(u))};
 var _replace=window.location.replace.bind(window.location);
 window.location.replace=function(u){_replace($(u))};
 
-/* ---- setAttribute ---- */
+/* ---- setAttribute (covers all attribute-based URL setting) ---- */
 var _sa=Element.prototype.setAttribute;
 Element.prototype.setAttribute=function(n,v){
-  if(n==="src"||n==="href"||n==="srcset"||n==="poster"||n==="data"||n==="action")v=$(v);
+  if(n==="src"||n==="href"||n==="srcset"||n==="poster"||n==="data"||n==="action"||n==="data-src"||n==="data-original"||n==="data-srcset"||n==="data-thumb"||n==="data-cover")v=$(v);
   if(n==="style")v=cssUrlT(v);
   return _sa.call(this,n,v);
 };
@@ -122,6 +122,14 @@ document.addEventListener("submit",function(e){
 },true);
 
 /* ---- DOM patching ---- */
+function rewriteLazy(el){
+  if(!el||el.nodeType!==1||!el.hasAttribute)return;
+  var lazy=["data-src","data-original","data-srcset"];
+  for(var i=0;i<lazy.length;i++){
+    var a=lazy[i];
+    if(el.hasAttribute(a))el.setAttribute(a,$(el.getAttribute(a)));
+  }
+}
 function fix(e){
   if(e.nodeType!==1)return;
   if(e.hasAttribute&&e.hasAttribute("integrity"))e.removeAttribute("integrity");
@@ -130,6 +138,7 @@ function fix(e){
   if(e.hasAttribute&&e.hasAttribute("srcset"))e.setAttribute("srcset",$(e.getAttribute("srcset")));
   if(e.hasAttribute&&e.hasAttribute("poster"))e.setAttribute("poster",$(e.getAttribute("poster")));
   if(e.hasAttribute&&e.hasAttribute("style"))e.setAttribute("style",cssUrlT(e.getAttribute("style")));
+  rewriteLazy(e);
 }
 function fixAttr(t){
   if(t.nodeType!==1||!t.hasAttribute)return;
@@ -139,8 +148,9 @@ function fixAttr(t){
   if(t.hasAttribute("poster"))t.setAttribute("poster",$(t.getAttribute("poster")));
   if(t.hasAttribute("href"))t.setAttribute("href",$(t.getAttribute("href")));
   if(t.hasAttribute("style"))t.setAttribute("style",cssUrlT(t.getAttribute("style")));
+  rewriteLazy(t);
 }
-function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity],[style]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
+function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity],[style],[data-src],[data-original],[data-srcset]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
 
 window.addEventListener("load",function(){
   fixAll(document.documentElement);
@@ -149,7 +159,7 @@ window.addEventListener("load",function(){
       m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)});
       if(m.type==="attributes")fixAttr(m.target);
     });
-  }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["src","href","srcset","poster","integrity","style"]})
+  }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["src","href","srcset","poster","integrity","style","data-src","data-original","data-srcset"]})
 });
 
 window.addEventListener("error",function(e){
@@ -236,9 +246,9 @@ function go(){
   var u=document.getElementById('url').value.trim();
   if(!u) return;
   if(!/^https?:\\/\\//i.test(u)) u='https://'+u;
-  location.href='/api/proxy?url='+encodeURIComponent(u);
+  location.href='/api/proxy?url='+encodeURIComponent(u)+'&ref='+encodeURIComponent(new URL(u).origin);
 }
-function qn(u){ location.href='/api/proxy?url='+encodeURIComponent('https://'+u); }
+function qn(u){ location.href='/api/proxy?url='+encodeURIComponent('https://'+u)+'&ref='+encodeURIComponent('https://'+u); }
 document.getElementById('url').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
 </script>
 </body>
@@ -259,19 +269,18 @@ export async function GET(request: NextRequest) {
   const refParam = request.nextUrl.searchParams.get("ref") || "";
   const clientRange = request.headers.get("range");
 
+  let refDomain = refParam;
+  try { if (!refDomain) refDomain = new URL(decoded).origin; } catch {}
+
   try {
     const reqHeaders: Record<string, string> = {
       "User-Agent": UA,
       "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     };
-
-    if (refParam) {
-      reqHeaders["Referer"] = refParam;
-      reqHeaders["Origin"] = refParam;
-    } else {
-      try { reqHeaders["Referer"] = new URL(decoded).origin; } catch {}
+    if (refDomain) {
+      reqHeaders["Referer"] = refDomain;
+      reqHeaders["Origin"] = refDomain;
     }
-
     if (clientRange) reqHeaders["Range"] = clientRange;
 
     const upstreamRes = await fetch(decoded, {
@@ -287,10 +296,10 @@ export async function GET(request: NextRequest) {
       let loc = upstreamRes.headers.get("location") || "";
       if (loc) {
         try { loc = new URL(loc, decoded).href; } catch {}
-        const ref = refParam ? `&ref=${encodeURIComponent(refParam)}` : "";
+        const refQuery = refDomain ? `&ref=${encodeURIComponent(refDomain)}` : "";
         return new Response(null, {
           status,
-          headers: { Location: `/api/proxy?url=${encodeURIComponent(loc)}${ref}` },
+          headers: { Location: `/api/proxy?url=${encodeURIComponent(loc)}${refQuery}` },
         });
       }
     }
@@ -305,8 +314,9 @@ export async function GET(request: NextRequest) {
     if (isHTML) {
       let html = await upstreamRes.text();
       html = html.replace(/integrity=(["'])[^"']*\1/gi, "");
+      html = html.replace(/crossorigin\s*=\s*(["'])[^"']*\1/gi, "");
       html = rewriteHtmlInlineUrls(html, decoded);
-      html = html.replace(/<head\b[^>]*>/i, () => `<head><script>${CLIENT_JS}</script>`);
+      html = html.replace(/<head\b[^>]*>/i, () => `<head><base href="${decoded}"><script>${CLIENT_JS}</script>`);
       responseHeaders.set("Content-Type", "text/html; charset=utf-8");
       responseHeaders.delete("content-encoding");
       responseHeaders.delete("content-security-policy");
