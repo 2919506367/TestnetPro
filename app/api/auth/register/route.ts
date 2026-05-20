@@ -27,18 +27,22 @@ export async function POST(request: NextRequest) {
     }
 
     const captchaToken = request.cookies.get("captcha_token")?.value;
-    if (!captchaToken || !captchaInput) {
-      return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
-    }
-    if (!verifyCaptcha(captchaToken, captchaInput)) {
-      return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
+    if (process.env.DISABLE_CAPTCHA !== "true") {
+      if (!captchaToken || !captchaInput) {
+        return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
+      }
+      if (!verifyCaptcha(captchaToken, captchaInput)) {
+        return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
+      }
     }
 
-    if (!emailCode || emailCode.length !== 6) {
-      return NextResponse.json({ error: "请输入邮箱验证码" }, { status: 400 });
-    }
-    if (!verifyEmailCode(email, emailCode)) {
-      return NextResponse.json({ error: "邮箱验证码错误或已失效" }, { status: 400 });
+    if (process.env.DISABLE_EMAIL_VERIFY !== "true") {
+      if (!emailCode || emailCode.length !== 6) {
+        return NextResponse.json({ error: "请输入邮箱验证码" }, { status: 400 });
+      }
+      if (!verifyEmailCode(email, emailCode)) {
+        return NextResponse.json({ error: "邮箱验证码错误或已失效" }, { status: 400 });
+      }
     }
 
     const existingEmail = await prisma.user.findUnique({ where: { email } });

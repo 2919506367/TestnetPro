@@ -12,11 +12,13 @@ export async function POST(request: NextRequest) {
     }
 
     const captchaToken = request.cookies.get("captcha_token")?.value;
-    if (!captchaToken || !captchaInput) {
-      return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
-    }
-    if (!verifyCaptcha(captchaToken, captchaInput)) {
-      return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
+    if (process.env.DISABLE_CAPTCHA !== "true") {
+      if (!captchaToken || !captchaInput) {
+        return NextResponse.json({ error: "请完成图形验证码" }, { status: 400 });
+      }
+      if (!verifyCaptcha(captchaToken, captchaInput)) {
+        return NextResponse.json({ error: "图形验证码错误或已失效" }, { status: 400 });
+      }
     }
 
     const user = await prisma.user.findUnique({ where: { email } });
