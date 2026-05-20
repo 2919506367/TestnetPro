@@ -65,21 +65,43 @@ hp(HTMLLinkElement.prototype,'href');
 hp(HTMLFormElement.prototype,'action');
 hp(HTMLObjectElement.prototype,'data');
 
-/* --- form submit --- */
-var _sub=HTMLFormElement.prototype.submit;
+/* --- form submit: save native, guard double-proxy --- */
+var _sub=HTMLFormElement.prototype.submit.bind(HTMLFormElement.prototype);
 HTMLFormElement.prototype.submit=function(){
-  var f=this,a=f.action||U;
-  try{f.action=P+"?url="+encodeURIComponent(new URL(a,U).href)+"&ref="+encodeURIComponent(R)}catch(e){}
+  var f=this,a=f.getAttribute("action")||U;
+  if(!a||a.indexOf(P)!==-1)return _sub.call(f);
+  try{f.setAttribute("action",P+"?url="+encodeURIComponent(new URL(a,U).href)+"&ref="+encodeURIComponent(R))}catch(e){}
   return _sub.call(f)
 };
 document.addEventListener("submit",function(e){
   var f=e.target;if(!f||f.tagName!=="FORM")return;
-  if(f.action&&f.action.indexOf(P)!==-1)return;
-  e.preventDefault();var fd=new FormData(f);var q=new URLSearchParams(fd).toString();var a=f.action||U;
-  try{var b=new URL(a,U);if((f.method||"get").toUpperCase()==="GET"||!f.method){b.search=q?(b.search?b.search+"&"+q:q):b.search;location.href=$(b.href)}else{f.action=$(b.href);f.submit()}}catch(e2){}
+  var a=f.getAttribute("action");
+  if(a&&a.indexOf(P)!==-1)return;
+  e.preventDefault();
+  var fd=new FormData(f);var q=new URLSearchParams(fd).toString();var aa=f.getAttribute("action")||U;
+  try{var b=new URL(aa,U);if((f.method||"get").toUpperCase()==="GET"||!f.method){b.search=q?(b.search?b.search+"&"+q:q):b.search;location.href=$(b.href)}else{f.setAttribute("action",$(b.href));_sub.call(f)}}catch(e2){}
 },true);
 
-/* --- DOM patching (lightweight, childList only) --- */
+/* --- click capture fallback for dynamic navigation --- */
+document.addEventListener("click",function(e){
+  if(e.defaultPrevented)return;
+  var el=e.target;
+  while(el&&el.nodeType===1){
+    var tag=el.tagName.toLowerCase();
+    if(tag==="a"||tag==="area"||(tag==="button"&&el.getAttribute("data-href"))){
+      var href=el.getAttribute("href")||el.getAttribute("data-href");
+      if(href&&href.indexOf(P)===-1&&!/^(javascript:|#)/i.test(href)){
+        e.preventDefault();
+        location.href=$(href);
+        return;
+      }
+      return;
+    }
+    el=el.parentElement;
+  }
+},true);
+
+/* --- DOM patching (lightweight, childList only, shallow) --- */
 function fixOne(el){
   if(!el||el.nodeType!==1||!el.hasAttribute)return;
   if(el.tagName==="SCRIPT"&&el.src&&el.src.indexOf(P)===-1)el.src=$(el.src);
@@ -98,8 +120,7 @@ function flush(){
       var n=batch[i];
       if(!n)continue;
       fixOne(n);
-      var imgs=n.querySelectorAll?n.querySelectorAll("img,video,source,a,form,link,script,iframe,embed,object"):[];
-      for(var j=0;j<imgs.length;j++)fixOne(imgs[j]);
+      if(n.children)for(var j=0;j<Math.min(n.children.length,50);j++)fixOne(n.children[j]);
     }catch(e){}
   }
 }
@@ -128,18 +149,13 @@ window.addEventListener("error",function(e){
 })();
 `;
 
-const HOP_BY_HOP = new Set([
-  "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-  "te", "trailers", "transfer-encoding", "upgrade",
-]);
-
 const FORWARD_HEADERS = [
   "content-type", "content-length", "content-encoding", "content-language",
   "content-disposition", "content-range", "accept-ranges",
   "cache-control", "age", "expires", "last-modified", "etag", "vary", "date", "pragma",
 ];
 
-// --- Helpers ---
+// --- URL rewriting helpers ---
 
 function rewriteCssText(css: string): string {
   return css.replace(
@@ -153,7 +169,7 @@ function rewriteCssText(css: string): string {
   );
 }
 
-function rewriteAttrUrl(val: string | null | undefined, baseUrl: string): string | null | undefined {
+function rewriteUrl(val: string | null | undefined, baseUrl: string): string | null | undefined {
   if (!val) return val;
   if (/^(data:|javascript:|mailto:|#|blob:|about:)/i.test(val)) return val;
   if (val.includes("/api/proxy")) return val;
@@ -164,68 +180,83 @@ function rewriteAttrUrl(val: string | null | undefined, baseUrl: string): string
   }
 }
 
+function rewriteSrcset(val: string | null | undefined, baseUrl: string): string | null | undefined {
+  if (!val) return val;
+  if (val.includes("/api/proxy")) return val;
+  const candidates = val.split(",").map((c) => c.trim());
+  const rewritten = candidates.map((c) => {
+    const m = /^\s*(\S+)\s*(.*)/.exec(c);
+    if (!m) return c;
+    const url = m[1];
+    const desc = m[2] || "";
+    if (/^(data:|#|blob:)/i.test(url) || url.includes("/api/proxy")) return c;
+    try {
+      return `/api/proxy?url=${encodeURIComponent(new URL(url, baseUrl).href)} ${desc}`.trim();
+    } catch {
+      return c;
+    }
+  });
+  return rewritten.join(", ");
+}
+
+// --- HTML parsing (server-side rewrite, one pass) ---
+
 function parseAndRewriteHtml(html: string, baseUrl: string): string {
   const $ = cheerio.load(html, {}, false);
 
-  // Rewrite all URL-bearing tags (server-side, one pass)
-  const REWRITE_SRC = ["img", "video", "audio", "source", "script", "iframe", "embed"];
-  const REWRITE_HREF = ["a", "area", "link", "base"];
-  const REWRITE_ACTION = ["form"];
-  const REWRITE_DATA = ["object"];
-  const LAZY_SRC = ["data-src", "data-original", "data-srcset", "data-thumb", "data-cover"];
+  // Rewrite src/srcset/poster/lazy on media elements
+  const MEDIA_TAGS = ["img", "video", "audio", "source", "script", "iframe", "embed"];
+  const LAZY_ATTRS = ["data-src", "data-original", "data-srcset", "data-thumb", "data-cover"];
 
-  // src-like
-  for (const tag of REWRITE_SRC) {
+  for (const tag of MEDIA_TAGS) {
     $(tag).each((_, el) => {
       const $el = $(el);
       const src = $el.attr("src");
-      if (src) $el.attr("src", rewriteAttrUrl(src, baseUrl));
-      const srcset = $el.attr("srcset");
-      if (srcset) $el.attr("srcset", rewriteAttrUrl(srcset, baseUrl));
+      if (src) $el.attr("src", rewriteUrl(src, baseUrl));
+      const ss = $el.attr("srcset");
+      if (ss) $el.attr("srcset", rewriteSrcset(ss, baseUrl));
       const poster = $el.attr("poster");
-      if (poster) $el.attr("poster", rewriteAttrUrl(poster, baseUrl));
-      for (const a of LAZY_SRC) {
+      if (poster) $el.attr("poster", rewriteUrl(poster, baseUrl));
+      for (const a of LAZY_ATTRS) {
         const v = $el.attr(a);
-        if (v) $el.attr(a, rewriteAttrUrl(v, baseUrl));
+        if (v) {
+          const rewritten = a.endsWith("srcset") ? rewriteSrcset(v, baseUrl) : rewriteUrl(v, baseUrl);
+          if (rewritten) $el.attr(a, rewritten);
+        }
       }
     });
   }
 
-  // href-like
-  for (const tag of REWRITE_HREF) {
+  // href on <a>, <area>, <link>
+  for (const tag of ["a", "area", "link"]) {
     $(tag).each((_, el) => {
       const $el = $(el);
       const href = $el.attr("href");
-      if (href) $el.attr("href", rewriteAttrUrl(href, baseUrl));
+      if (href) $el.attr("href", rewriteUrl(href, baseUrl));
     });
   }
 
   // form action
-  for (const tag of REWRITE_ACTION) {
-    $(tag).each((_, el) => {
-      const $el = $(el);
-      const action = $el.attr("action");
-      if (action) $el.attr("action", rewriteAttrUrl(action, baseUrl));
-    });
-  }
+  $("form").each((_, el) => {
+    const $el = $(el);
+    const action = $el.attr("action");
+    if (action) $el.attr("action", rewriteUrl(action, baseUrl));
+  });
 
   // object data
-  for (const tag of REWRITE_DATA) {
-    $(tag).each((_, el) => {
-      const $el = $(el);
-      const d = $el.attr("data");
-      if (d) $el.attr("data", rewriteAttrUrl(d, baseUrl));
-    });
-  }
+  $("object").each((_, el) => {
+    const $el = $(el);
+    const d = $el.attr("data");
+    if (d) $el.attr("data", rewriteUrl(d, baseUrl));
+  });
 
-  // <meta http-equiv="refresh">
+  // meta refresh
   $('meta[http-equiv="refresh"]').each((_, el) => {
     const $el = $(el);
     const content = $el.attr("content");
     if (content) {
       const rewritten = content.replace(/url=([^;]+)/i, (_, u) => {
-        const nu = rewriteAttrUrl(u.trim(), baseUrl);
-        return `url=${nu}`;
+        return `url=${rewriteUrl(u.trim(), baseUrl)}`;
       });
       $el.attr("content", rewritten);
     }
@@ -233,29 +264,30 @@ function parseAndRewriteHtml(html: string, baseUrl: string): string {
 
   // style tags
   $("style").each((_, el) => {
-    const $el = $(el);
-    const css = $el.html();
-    if (css) $el.html(rewriteCssText(css));
+    const css = $(el).html();
+    if (css) $(el).html(rewriteCssText(css));
   });
 
-  // inline style attributes
+  // inline style
   $("[style]").each((_, el) => {
-    const $el = $(el);
-    const s = $el.attr("style");
-    if (s) $el.attr("style", rewriteCssText(s));
+    const s = $(el).attr("style");
+    if (s) $(el).attr("style", rewriteCssText(s));
   });
 
-  // Remove integrity, remove crossorigin
+  // Delete <base> entirely — don't rewrite, just remove
+  $("base").remove();
+
+  // Remove integrity/crossorigin
   $("[integrity]").removeAttr("integrity");
   $("[crossorigin]").removeAttr("crossorigin");
 
-  // Inject client JS at top of head
+  // Inject client JS
   $("head").prepend(`<script>${CLIENT_JS}</script>`);
 
   return $.html();
 }
 
-// --- Main handler ---
+// --- Main Proxy Handler ---
 
 async function handleProxy(request: NextRequest) {
   const targetUrl = request.nextUrl.searchParams.get("url");
@@ -272,30 +304,24 @@ async function handleProxy(request: NextRequest) {
   try { if (!refDomain) refDomain = new URL(decoded).origin; } catch {}
 
   try {
-    // Build upstream request headers
     const upstreamHeaders: Record<string, string> = {
       "User-Agent": UA,
       "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
     };
-
     if (refDomain) {
       upstreamHeaders["Referer"] = refDomain;
       upstreamHeaders["Origin"] = refDomain;
     }
-
     if (clientRange) upstreamHeaders["Range"] = clientRange;
 
-    // Forward user cookies
     const proxyCookie = request.headers.get("cookie");
     if (proxyCookie) upstreamHeaders["Cookie"] = proxyCookie;
 
-    // Forward content-type / accept from client
     const clientCT = request.headers.get("content-type");
     if (clientCT) upstreamHeaders["Content-Type"] = clientCT;
     const clientAccept = request.headers.get("accept");
     if (clientAccept) upstreamHeaders["Accept"] = clientAccept;
 
-    // Build upstream request
     let upstreamBody: BodyInit | null = null;
     if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
       upstreamBody = request.body;
@@ -312,7 +338,7 @@ async function handleProxy(request: NextRequest) {
     const status = upstreamRes.status;
     const ct = upstreamRes.headers.get("content-type") || "";
 
-    // Redirect rewriting
+    // Redirect
     if (status >= 300 && status < 400) {
       let loc = upstreamRes.headers.get("location") || "";
       if (loc) {
@@ -332,14 +358,21 @@ async function handleProxy(request: NextRequest) {
 
     const responseHeaders = new Headers();
 
-    // Forward Set-Cookie always
-    const setCookie = upstreamRes.headers.get("set-cookie");
-    if (setCookie) responseHeaders.set("Set-Cookie", setCookie);
+    // Forward ALL Set-Cookie values (use getSetCookie if available)
+    if ("getSetCookie" in upstreamRes.headers && typeof (upstreamRes.headers as { getSetCookie: () => string[] }).getSetCookie === "function") {
+      const cookies = (upstreamRes.headers as unknown as { getSetCookie(): string[] }).getSetCookie();
+      for (const c of cookies) responseHeaders.append("Set-Cookie", c);
+    } else {
+      const raw = upstreamRes.headers.get("set-cookie");
+      if (raw) {
+        const parts = raw.split(/,(?=\s*\S+\s*=)/);
+        for (const p of parts) responseHeaders.append("Set-Cookie", p.trim());
+      }
+    }
 
     if (isHTML) {
       let html = await upstreamRes.text();
       html = parseAndRewriteHtml(html, decoded);
-
       responseHeaders.set("Content-Type", "text/html; charset=utf-8");
       responseHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
       return new NextResponse(html, { status: 200, headers: responseHeaders });
@@ -360,10 +393,10 @@ async function handleProxy(request: NextRequest) {
       responseHeaders.set("Access-Control-Allow-Origin", "*");
       responseHeaders.set("Access-Control-Allow-Headers", "Range, Content-Range");
       responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, ETag");
-      if (upstreamRes.headers.get("content-range"))
-        responseHeaders.set("Content-Range", upstreamRes.headers.get("content-range")!);
-      if (upstreamRes.headers.get("content-length"))
-        responseHeaders.set("Content-Length", upstreamRes.headers.get("content-length")!);
+      const cr = upstreamRes.headers.get("content-range");
+      if (cr) responseHeaders.set("Content-Range", cr);
+      const cl = upstreamRes.headers.get("content-length");
+      if (cl) responseHeaders.set("Content-Length", cl);
       const st = clientRange && status === 206 ? 206 : status;
       return new Response(upstreamRes.body, { status: st, headers: responseHeaders });
     }
@@ -377,7 +410,7 @@ async function handleProxy(request: NextRequest) {
       return new Response(upstreamRes.body, { status, headers: responseHeaders });
     }
 
-    // Generic: forward key headers
+    // Generic passthrough
     for (const h of FORWARD_HEADERS) {
       const v = upstreamRes.headers.get(h);
       if (v) responseHeaders.set(h, v);
@@ -442,7 +475,6 @@ function qn(u){location.href='/api/proxy?url='+encodeURIComponent('https://'+u)+
   return new NextResponse(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
-// Export all HTTP methods as per the review document
 export async function GET(request: NextRequest) { return handleProxy(request); }
 export async function POST(request: NextRequest) { return handleProxy(request); }
 export async function PUT(request: NextRequest) { return handleProxy(request); }

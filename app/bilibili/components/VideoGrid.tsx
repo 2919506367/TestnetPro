@@ -26,18 +26,22 @@ export default function VideoGrid({
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [seed, setSeed] = useState(Date.now());
-  const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const seenBvids = useRef<Set<string>>(new Set());
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef(1);
+  const loadingRef = useRef(false);
 
   const fetchVideos = useCallback(async (s: number, p: number, append: boolean) => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     if (append) setLoadingMore(true);
     else setLoading(true);
 
     try {
       const ex = Array.from(seenBvids.current).slice(-50).join(",");
-      const size = append ? 8 : 12;
+      const size = 12;
       const res = await fetch(`/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`);
       const data = await res.json();
       const list: VideoItem[] = data.videos || [];
@@ -55,6 +59,7 @@ export default function VideoGrid({
     } finally {
       setLoading(false);
       setLoadingMore(false);
+      loadingRef.current = false;
     }
   }, []);
 
@@ -64,17 +69,29 @@ export default function VideoGrid({
 
   const handleRefresh = () => {
     seenBvids.current.clear();
+    pageRef.current = 1;
+    loadingRef.current = false;
     const newSeed = Date.now();
     setSeed(newSeed);
-    setPage(1);
     fetchVideos(newSeed, 1, false);
   };
 
-  const handleLoadMore = () => {
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchVideos(seed, nextPage, true);
-  };
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingRef.current) {
+          pageRef.current += 1;
+          fetchVideos(seed, pageRef.current, true);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, seed, fetchVideos]);
 
   const bg = dark ? "bg-[#141414]" : "bg-[#f4f5f7]";
   const cardBg = dark ? "bg-[#1f1f1f] hover:bg-[#2a2a2a]" : "bg-white hover:bg-gray-50";
@@ -169,26 +186,14 @@ export default function VideoGrid({
         ))}
       </div>
 
+      {/* Sentinel for infinite scroll */}
+      {hasMore && <div ref={sentinelRef} className="h-10" />}
+
       {loadingMore && (
-        <div className="flex justify-center py-8">
+        <div className="flex justify-center py-4">
           <div className="w-6 h-6 rounded-full border-2 border-t-transparent animate-spin"
             style={{ borderColor: dark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)", borderTopColor: dark ? "#fff" : "#333" }}
           />
-        </div>
-      )}
-
-      {hasMore && !loadingMore && videos.length > 0 && (
-        <div className="flex justify-center py-6">
-          <button
-            onClick={handleLoadMore}
-            className={`px-6 py-2 rounded-full text-sm transition-all ${
-              dark
-                ? "bg-white/5 hover:bg-white/10 text-white/70 border border-white/10"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-600"
-            }`}
-          >
-            加载更多
-          </button>
         </div>
       )}
 

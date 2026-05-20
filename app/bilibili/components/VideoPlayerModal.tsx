@@ -89,7 +89,7 @@ export default function VideoPlayerModal({
         const data = await res.json();
         if (cancelled) return;
         if (data.videoUrl) {
-          const proxyMode = forceProxy && data.proxyVideoUrl;
+          const proxyMode = !!(data.proxyVideoUrl);
           setResolved({
             videoUrl: proxyMode ? data.proxyVideoUrl : data.videoUrl,
             audioUrl: proxyMode && data.proxyAudioUrl ? data.proxyAudioUrl : (data.audioUrl || null),
@@ -99,6 +99,7 @@ export default function VideoPlayerModal({
             qn: data.qn || qn, qnLabel: data.qnLabel || QN_MAP[qn] || `${qn}P`,
             cid: Number(data.cid || video.cid || 0),
           });
+          setUseProxy(true);
           setPhase("buffering");
         } else if (data.fallback) { setPhase("fallback"); }
         else { setPhase("error"); }
@@ -128,11 +129,13 @@ export default function VideoPlayerModal({
     const onPause = () => { if (phase !== "buffering") setPhase("paused"); };
     const onWaiting = () => { setPhase("buffering"); };
     const onError = () => {
-      if (resolved.proxyVideoUrl && !resolved.usingProxy) {
+      if (resolved.proxyVideoUrl && resolved.videoUrl !== resolved.proxyVideoUrl) {
         setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyVideoUrl!, usingProxy: true } : null);
         setUseProxy(true);
       } else if (resolved.backupUrl) {
         setResolved((prev) => prev ? { ...prev, videoUrl: resolved.backupUrl!, backupUrl: null } : null);
+      } else if (resolved.proxyBackupUrl && resolved.videoUrl !== resolved.proxyBackupUrl) {
+        setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyBackupUrl!, usingProxy: true } : null);
       } else { setPhase("error"); }
     };
     const onTime = () => { setCurrentTime(v.currentTime); setDuration(v.duration || 0); };
@@ -157,11 +160,11 @@ export default function VideoPlayerModal({
     }, 500);
 
     loadTimeoutRef.current = setTimeout(() => {
-      if (phase === "buffering" && resolved.proxyVideoUrl && !resolved.usingProxy) {
+      if (phase === "buffering" && resolved.proxyVideoUrl && resolved.videoUrl !== resolved.proxyVideoUrl) {
         setResolved((prev) => prev ? { ...prev, videoUrl: resolved.proxyVideoUrl!, usingProxy: true } : null);
         setUseProxy(true);
       }
-    }, 10000);
+    }, 8000);
 
     v.addEventListener("playing", onPlaying); v.addEventListener("pause", onPause);
     v.addEventListener("waiting", onWaiting);
