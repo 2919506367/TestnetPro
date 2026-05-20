@@ -8,12 +8,16 @@ const CLIENT_JS = `
 var P="/api/proxy";
 var U=new URL(window.location.href).searchParams.get("url")||"";
 if(U&&!U.startsWith("http"))U="https://"+U;
+var REF=U?new URL(U).origin:"";
 
 function $(p){
   if(!p)return p;
   try{if(typeof p==="string"&&/^(data:|javascript:|mailto:|#|blob:|ws:|about:|chrome|edge)/i.test(p))return p}catch(e){}
   if(typeof p==="string"&&p.indexOf(P)!==-1)return p;
-  try{return P+"?url="+encodeURIComponent(new URL(p,U).href)}catch(e){return p}
+  try{
+    var abs=new URL(p,U).href;
+    return P+"?url="+encodeURIComponent(abs)+"&ref="+encodeURIComponent(REF);
+  }catch(e){return p}
 }
 
 function cssUrlT(txt){
@@ -52,41 +56,39 @@ var _rstate=History.prototype.replaceState;
 History.prototype.replaceState=function(s,t,u){return _rstate.apply(this,[s,t,$(u)])};
 
 /* ---- direct property setters ---- */
-function hookProp(proto,prop){
+function hp(proto,prop){
   try{
     var d=Object.getOwnPropertyDescriptor(proto,prop);
     if(d&&d.set){
-      var origSet=d.set;
-      Object.defineProperty(proto,prop,{get:d.get,set:function(v){return origSet.call(this,$(v))},configurable:true,enumerable:true})
+      var o=d.set;
+      Object.defineProperty(proto,prop,{get:d.get,set:function(v){return o.call(this,$(v))},configurable:true,enumerable:true})
     }
   }catch(e){}
 }
-hookProp(HTMLAnchorElement.prototype,'href');
-hookProp(HTMLImageElement.prototype,'src');
-hookProp(HTMLImageElement.prototype,'srcset');
-hookProp(HTMLScriptElement.prototype,'src');
-hookProp(HTMLIFrameElement.prototype,'src');
-hookProp(HTMLVideoElement.prototype,'src');
-hookProp(HTMLVideoElement.prototype,'poster');
-hookProp(HTMLAudioElement.prototype,'src');
-hookProp(HTMLSourceElement.prototype,'src');
-hookProp(HTMLEmbedElement.prototype,'src');
-hookProp(HTMLInputElement.prototype,'src');
-hookProp(HTMLLinkElement.prototype,'href');
-hookProp(HTMLFormElement.prototype,'action');
-hookProp(HTMLObjectElement.prototype,'data');
+hp(HTMLAnchorElement.prototype,'href');
+hp(HTMLImageElement.prototype,'src');
+hp(HTMLImageElement.prototype,'srcset');
+hp(HTMLScriptElement.prototype,'src');
+hp(HTMLIFrameElement.prototype,'src');
+hp(HTMLVideoElement.prototype,'src');
+hp(HTMLVideoElement.prototype,'poster');
+hp(HTMLAudioElement.prototype,'src');
+hp(HTMLSourceElement.prototype,'src');
+hp(HTMLEmbedElement.prototype,'src');
+hp(HTMLInputElement.prototype,'src');
+hp(HTMLLinkElement.prototype,'href');
+hp(HTMLFormElement.prototype,'action');
+hp(HTMLObjectElement.prototype,'data');
 
-/* ---- CSSOM style interception (lightweight: only if value contains url() ---- */
+/* ---- CSSOM style interception ---- */
 try{
   var _sp=CSSStyleDeclaration.prototype.setProperty;
   CSSStyleDeclaration.prototype.setProperty=function(p,v,prio){
     if(typeof v==="string"&&v.indexOf("url(")!==-1&&(p==="background-image"||p==="background"||p==="list-style-image"||p==="border-image"||p==="mask"||p==="mask-image"))v=cssUrlT(v);
     return _sp.call(this,p,v,prio);
   };
-
   var _bg=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'backgroundImage');
   if(_bg&&_bg.set){var obs=_bg.set;Object.defineProperty(CSSStyleDeclaration.prototype,'backgroundImage',{get:_bg.get,set:function(v){return obs.call(this,typeof v==="string"&&v.indexOf("url(")!==-1?cssUrlT(v):v)},configurable:true})}
-
   var _bgs=Object.getOwnPropertyDescriptor(CSSStyleDeclaration.prototype,'background');
   if(_bgs&&_bgs.set){var obs2=_bgs.set;Object.defineProperty(CSSStyleDeclaration.prototype,'background',{get:_bgs.get,set:function(v){return obs2.call(this,typeof v==="string"&&v.indexOf("url(")!==-1?cssUrlT(v):v)},configurable:true})}
 }catch(e){}
@@ -95,10 +97,7 @@ try{
 var _submit=HTMLFormElement.prototype.submit;
 HTMLFormElement.prototype.submit=function(){
   var f=this,a=f.action||U;
-  try{
-    var b=new URL(a,U);
-    f.action=P+"?url="+encodeURIComponent(b.href);
-  }catch(e){}
+  try{var b=new URL(a,U);f.action=P+"?url="+encodeURIComponent(b.href)+"&ref="+encodeURIComponent(REF)}catch(e){}
   return _submit.call(f)
 };
 
@@ -132,7 +131,6 @@ function fix(e){
   if(e.hasAttribute&&e.hasAttribute("poster"))e.setAttribute("poster",$(e.getAttribute("poster")));
   if(e.hasAttribute&&e.hasAttribute("style"))e.setAttribute("style",cssUrlT(e.getAttribute("style")));
 }
-
 function fixAttr(t){
   if(t.nodeType!==1||!t.hasAttribute)return;
   if(t.hasAttribute("integrity"))t.removeAttribute("integrity");
@@ -142,7 +140,6 @@ function fixAttr(t){
   if(t.hasAttribute("href"))t.setAttribute("href",$(t.getAttribute("href")));
   if(t.hasAttribute("style"))t.setAttribute("style",cssUrlT(t.getAttribute("style")));
 }
-
 function fixAll(r){r.querySelectorAll("[src],[href],[srcset],[poster],[integrity],[style]").forEach(function(n){if(n.nodeType===1)fix(n)});fix(r);}
 
 window.addEventListener("load",function(){
@@ -179,7 +176,6 @@ function rewriteHtmlInlineUrls(html: string, baseUrl: string): string {
   html = html.replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (full) => {
     return rewriteCssUrls(full);
   });
-
   html = html.replace(/style\s*=\s*("([^"]*)"|'([^']*)')/gi, (full: string, _q: string, dq: string, sq: string) => {
     const raw = dq || sq || "";
     const rewritten = raw.replace(/url\(\s*(["']?)([^"')]+)\1\s*\)/gi, (_m: string, _qq: string, r: string) => {
@@ -191,7 +187,6 @@ function rewriteHtmlInlineUrls(html: string, baseUrl: string): string {
     const q = dq !== undefined ? '"' : "'";
     return `style=${q}${rewritten}${q}`;
   });
-
   return html;
 }
 
@@ -253,27 +248,36 @@ export async function GET(request: NextRequest) {
   const targetUrl = request.nextUrl.searchParams.get("url");
 
   if (!targetUrl) {
-    return new NextResponse(HOMEPAGE, {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-  }
-
-  let decoded: string;
-  try {
-    decoded = decodeURIComponent(targetUrl);
-  } catch {
     return new NextResponse(HOMEPAGE, { headers: { "Content-Type": "text/html; charset=utf-8" } });
   }
 
+  let decoded: string;
+  try { decoded = decodeURIComponent(targetUrl); } catch {
+    return new NextResponse(HOMEPAGE, { headers: { "Content-Type": "text/html; charset=utf-8" } });
+  }
+
+  const refParam = request.nextUrl.searchParams.get("ref") || "";
+  const clientRange = request.headers.get("range");
+
   try {
+    const reqHeaders: Record<string, string> = {
+      "User-Agent": UA,
+      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    };
+
+    if (refParam) {
+      reqHeaders["Referer"] = refParam;
+      reqHeaders["Origin"] = refParam;
+    } else {
+      try { reqHeaders["Referer"] = new URL(decoded).origin; } catch {}
+    }
+
+    if (clientRange) reqHeaders["Range"] = clientRange;
+
     const upstreamRes = await fetch(decoded, {
-      headers: {
-        "User-Agent": UA,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-      },
-      redirect: "manual",
-      signal: AbortSignal.timeout(30000),
+      headers: reqHeaders,
+      redirect: "follow",
+      signal: AbortSignal.timeout(60000),
     });
 
     const status = upstreamRes.status;
@@ -283,26 +287,20 @@ export async function GET(request: NextRequest) {
       let loc = upstreamRes.headers.get("location") || "";
       if (loc) {
         try { loc = new URL(loc, decoded).href; } catch {}
+        const ref = refParam ? `&ref=${encodeURIComponent(refParam)}` : "";
         return new Response(null, {
           status,
-          headers: { Location: `/api/proxy?url=${encodeURIComponent(loc)}` },
+          headers: { Location: `/api/proxy?url=${encodeURIComponent(loc)}${ref}` },
         });
-      }
-    }
-
-    const responseHeaders = new Headers();
-    for (const h of ["content-type", "content-disposition", "cache-control", "etag", "last-modified", "expires", "set-cookie"]) {
-      const v = upstreamRes.headers.get(h);
-      if (v) {
-        if (h === "set-cookie") responseHeaders.append("Set-Cookie", v);
-        else responseHeaders.set(h, v);
       }
     }
 
     const isHTML = ct.includes("text/html") || ct.includes("application/xhtml");
     const isCSS = ct.includes("text/css");
+    const isMedia = ct.includes("video/") || ct.includes("audio/");
     const isImage = ct.includes("image/");
-    const isFont = ct.includes("font/");
+
+    const responseHeaders = new Headers();
 
     if (isHTML) {
       let html = await upstreamRes.text();
@@ -328,18 +326,38 @@ export async function GET(request: NextRequest) {
       return new NextResponse(css, { status: 200, headers: responseHeaders });
     }
 
-    if (isImage || isFont) {
+    if (isMedia || isImage) {
+      responseHeaders.set("Content-Type", ct);
+      responseHeaders.set("Access-Control-Allow-Origin", "*");
+      responseHeaders.set("Access-Control-Allow-Headers", "Range, Content-Range");
+      responseHeaders.set("Access-Control-Expose-Headers", "Content-Range, Accept-Ranges, Content-Length, ETag");
+      if (isMedia) {
+        responseHeaders.set("Accept-Ranges", "bytes");
+        responseHeaders.set("Cache-Control", "public, max-age=60");
+        if (upstreamRes.headers.get("content-range"))
+          responseHeaders.set("Content-Range", upstreamRes.headers.get("content-range")!);
+        if (upstreamRes.headers.get("content-length"))
+          responseHeaders.set("Content-Length", upstreamRes.headers.get("content-length")!);
+        const st = clientRange && status === 206 ? 206 : status;
+        return new Response(upstreamRes.body, { status: st, headers: responseHeaders });
+      }
       responseHeaders.set("Cache-Control", "public, max-age=604800, immutable");
+      ["content-length", "content-encoding"].forEach((h) => {
+        const v = upstreamRes.headers.get(h);
+        if (v) responseHeaders.set(h, v);
+      });
+      return new Response(upstreamRes.body, { status, headers: responseHeaders });
     }
 
-    ["content-length", "content-encoding"].forEach((h) => {
+    for (const h of ["content-type", "content-length", "content-encoding", "cache-control", "etag", "last-modified", "expires", "set-cookie"]) {
       const v = upstreamRes.headers.get(h);
-      if (v) responseHeaders.set(h, v);
-    });
-    if (!responseHeaders.has("content-type"))
-      responseHeaders.set("Content-Type", "application/octet-stream");
-    if (!responseHeaders.has("cache-control"))
-      responseHeaders.set("Cache-Control", "public, max-age=3600");
+      if (v) {
+        if (h === "set-cookie") responseHeaders.append("Set-Cookie", v);
+        else responseHeaders.set(h, v);
+      }
+    }
+    if (!responseHeaders.has("content-type")) responseHeaders.set("Content-Type", "application/octet-stream");
+    if (!responseHeaders.has("cache-control")) responseHeaders.set("Cache-Control", "public, max-age=3600");
 
     return new NextResponse(upstreamRes.body, { status, headers: responseHeaders });
   } catch {
