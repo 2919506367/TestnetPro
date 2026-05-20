@@ -157,7 +157,14 @@ window.addEventListener("load",function(){
   new MutationObserver(function(ms){
     ms.forEach(function(m){
       m.addedNodes.forEach(function(n){if(n.nodeType===1)fixAll(n)});
-      if(m.type==="attributes")fixAttr(m.target);
+      if(m.type==="attributes"){
+        var t=m.target;
+        var a=m.attributeName;
+        if(!t||!a)return;
+        var v=t.getAttribute(a);
+        if(!v||v.indexOf(P)!==-1)return;
+        fixAttr(t);
+      }
     });
   }).observe(document.documentElement,{childList:true,subtree:true,attributes:true,attributeFilter:["src","href","srcset","poster","integrity","style","data-src","data-original","data-srcset"]})
 });
@@ -314,9 +321,8 @@ export async function GET(request: NextRequest) {
     if (isHTML) {
       let html = await upstreamRes.text();
       html = html.replace(/integrity=(["'])[^"']*\1/gi, "");
-      html = html.replace(/crossorigin\s*=\s*(["'])[^"']*\1/gi, "");
       html = rewriteHtmlInlineUrls(html, decoded);
-      html = html.replace(/<head\b[^>]*>/i, () => `<head><base href="${decoded}"><script>${CLIENT_JS}</script>`);
+      html = html.replace(/<head\b[^>]*>/i, () => `<head><script>${CLIENT_JS}</script>`);
       responseHeaders.set("Content-Type", "text/html; charset=utf-8");
       responseHeaders.delete("content-encoding");
       responseHeaders.delete("content-security-policy");
