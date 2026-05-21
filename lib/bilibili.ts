@@ -13,7 +13,24 @@ export function biliHeaders(referer = "https://www.bilibili.com") {
   return headers;
 }
 
+const RELAY_URL = process.env.RELAY_URL || "";
+const RELAY_KEY = process.env.RELAY_KEY || "bili-relay-internal-2026";
+
 export async function biliFetch(path: string, referer?: string) {
+  if (RELAY_URL) {
+    try {
+      const res = await fetch(`${RELAY_URL}/api`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-relay-key": RELAY_KEY },
+        body: JSON.stringify({ path, cookies: process.env.BILI_COOKIE || "" }),
+      });
+      if (!res.ok) return null;
+      const wrapped = await res.json();
+      if (wrapped.status === 200 && wrapped.body?.code === 0) return wrapped.body;
+      return null;
+    } catch { return null; }
+  }
+
   const res = await fetch(`${BILI_API}${path}`, {
     headers: biliHeaders(referer),
     cache: "no-store",
@@ -21,6 +38,8 @@ export async function biliFetch(path: string, referer?: string) {
   if (!res.ok) return null;
   return res.json();
 }
+
+export { RELAY_URL, RELAY_KEY };
 
 export function formatCount(num: number): string {
   if (num >= 10000) return (num / 10000).toFixed(1) + "万";

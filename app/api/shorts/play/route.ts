@@ -4,6 +4,21 @@ const BILI_API = "https://api.bilibili.com";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+const RELAY_URL = process.env.RELAY_URL || "";
+const RELAY_KEY = process.env.RELAY_KEY || "bili-relay-internal-2026";
+
+async function relayFetch(path: string, cookies?: string): Promise<{ status: number; body: any } | null> {
+  try {
+    const res = await fetch(`${RELAY_URL}/api`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-relay-key": RELAY_KEY },
+      body: JSON.stringify({ path, cookies: cookies || process.env.BILI_COOKIE || "" }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch { return null; }
+}
+
 const QN_MAP: Record<number, string> = {
   6: "240P 极速",
   16: "360P 流畅",
@@ -32,8 +47,16 @@ function biliHeaders(referer = "https://www.bilibili.com") {
 }
 
 async function tryPlayUrl(bvid: string, cid: string, fnval: number, qn: number) {
+  const path = `/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=${qn}&platform=web&fnval=${fnval}&fourk=1`;
+
+  if (RELAY_URL) {
+    const r = await relayFetch(path);
+    if (r && r.status === 200 && r.body?.code === 0) return r.body;
+    return null;
+  }
+
   const playRes = await fetch(
-    `${BILI_API}/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=${qn}&platform=web&fnval=${fnval}&fourk=1`,
+    `${BILI_API}${path}`,
     { headers: biliHeaders(`https://www.bilibili.com/video/${bvid}`) }
   );
   if (!playRes.ok) return null;
@@ -77,12 +100,20 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const pageRes = await fetch(`${BILI_API}/x/player/pagelist?bvid=${bvid}`, {
-      headers: biliHeaders(),
-    });
-    if (!pageRes.ok) throw new Error("pagelist failed");
-    const pageData = await pageRes.json();
-    const cid = pageData.data?.[0]?.cid;
+    let cid: any;
+    if (RELAY_URL) {
+      const r = await relayFetch(`/x/player/pagelist?bvid=${bvid}`);
+      if (r && r.status === 200 && r.body?.code === 0) {
+        cid = r.body.data?.[0]?.cid;
+      }
+    } else {
+      const pageRes = await fetch(`${BILI_API}/x/player/pagelist?bvid=${bvid}`, {
+        headers: biliHeaders(),
+      });
+      if (!pageRes.ok) throw new Error("pagelist failed");
+      const pageData = await pageRes.json();
+      cid = pageData.data?.[0]?.cid;
+    }
     if (!cid) throw new Error("no cid");
 
     let resultBody: any;
