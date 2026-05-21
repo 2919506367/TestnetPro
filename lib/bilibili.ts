@@ -19,16 +19,22 @@ const RELAY_KEY = process.env.RELAY_KEY || "bili-relay-internal-2026";
 export async function biliFetch(path: string, referer?: string) {
   if (RELAY_URL) {
     try {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 8000);
       const res = await fetch(`${RELAY_URL}/api`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-relay-key": RELAY_KEY },
         body: JSON.stringify({ path, cookies: process.env.BILI_COOKIE || "" }),
+        signal: ctrl.signal,
       });
-      if (!res.ok) return null;
+      clearTimeout(t);
+      if (!res.ok) throw new Error("relay non-200");
       const wrapped = await res.json();
       if (wrapped.status === 200 && wrapped.body?.code === 0) return wrapped.body;
-      return null;
-    } catch { return null; }
+      throw new Error("relay upstream error");
+    } catch {
+      console.warn("biliFetch: relay failed, falling back to direct");
+    }
   }
 
   const res = await fetch(`${BILI_API}${path}`, {

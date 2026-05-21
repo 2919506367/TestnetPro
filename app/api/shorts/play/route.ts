@@ -9,11 +9,15 @@ const RELAY_KEY = process.env.RELAY_KEY || "bili-relay-internal-2026";
 
 async function relayFetch(path: string, cookies?: string): Promise<{ status: number; body: any } | null> {
   try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch(`${RELAY_URL}/api`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-relay-key": RELAY_KEY },
       body: JSON.stringify({ path, cookies: cookies || process.env.BILI_COOKIE || "" }),
+      signal: ctrl.signal,
     });
+    clearTimeout(t);
     if (!res.ok) return null;
     return res.json();
   } catch { return null; }
@@ -52,7 +56,6 @@ async function tryPlayUrl(bvid: string, cid: string, fnval: number, qn: number) 
   if (RELAY_URL) {
     const r = await relayFetch(path);
     if (r && r.status === 200 && r.body?.code === 0) return r.body;
-    return null;
   }
 
   const playRes = await fetch(
@@ -106,7 +109,8 @@ export async function GET(request: NextRequest) {
       if (r && r.status === 200 && r.body?.code === 0) {
         cid = r.body.data?.[0]?.cid;
       }
-    } else {
+    }
+    if (!cid) {
       const pageRes = await fetch(`${BILI_API}/x/player/pagelist?bvid=${bvid}`, {
         headers: biliHeaders(),
       });

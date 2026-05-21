@@ -91,9 +91,8 @@ function BilibiliApp() {
   const performSearch = () => {
     const q = searchQuery.trim();
     if (q) {
-      setShowSearch(true);
-      setSearchPage(1);
-      doSearch(q, searchType, 1, false);
+      const searchUrl = `https://search.bilibili.com/all?keyword=${encodeURIComponent(q)}`;
+      window.open(`/api/proxy?url=${encodeURIComponent(searchUrl)}&ref=${encodeURIComponent('https://search.bilibili.com')}`, '_blank');
     }
   };
 
