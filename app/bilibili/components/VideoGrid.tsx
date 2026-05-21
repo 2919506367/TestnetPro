@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Play, RefreshCw, Eye, Heart, MessageCircle, Clock } from "lucide-react";
+import { Play, RefreshCw, Eye, Heart, MessageCircle, Clock, AlertCircle } from "lucide-react";
 import { formatPubdate } from "@/lib/bilibili";
 import BiliImage from "./BiliImage";
 
@@ -28,6 +28,7 @@ export default function VideoGrid({
   const [seed, setSeed] = useState(Date.now());
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState("");
   const seenBvids = useRef<Set<string>>(new Set());
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(1);
@@ -36,14 +37,18 @@ export default function VideoGrid({
 
   const fetchVideos = useCallback(async (s: number, p: number, append: boolean) => {
     if (loadingRef.current) return;
+    if (append && !hasMore) return;
     loadingRef.current = true;
     if (append) setLoadingMore(true);
-    else setLoading(true);
+    else { setLoading(true); setError(""); }
 
     try {
       const ex = Array.from(seenBvids.current).slice(-50).join(",");
       const size = append ? 8 : 16;
-      const res = await fetch(`/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(`/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`, { signal: controller.signal });
+      clearTimeout(timer);
       const data = await res.json();
       const list: VideoItem[] = data.videos || [];
 
@@ -57,13 +62,16 @@ export default function VideoGrid({
       }
       setHasMore(list.length >= size);
       setSeed(data.nextSeed || s + 1);
-    } catch {
+    } catch (e) {
+      console.error("feed fetch error:", e);
+      if (!append) { setVideos([]); setHasMore(false); setError("推荐视频加载失败"); }
+      else { setHasMore(false); }
     } finally {
       setLoading(false);
       setLoadingMore(false);
       loadingRef.current = false;
     }
-  }, []);
+  }, [hasMore]);
 
   useEffect(() => {
     firstLoadDone.current = false;
@@ -76,13 +84,16 @@ export default function VideoGrid({
     loadingRef.current = false;
     const newSeed = Date.now();
     setSeed(newSeed);
+    setError("");
+    setHasMore(true);
     fetchVideos(newSeed, 1, false);
   };
 
-  // IntersectionObserver for infinite scroll
+  // IntersectionObserver for infinite scroll (guarded)
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
+    if (videos.length < 8) return;
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore && !loadingMore && !loadingRef.current) {
@@ -94,7 +105,7 @@ export default function VideoGrid({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasMore, loadingMore, seed, fetchVideos]);
+  }, [hasMore, loadingMore, seed, fetchVideos, videos.length]);
 
   const bg = dark ? "bg-[#141414]" : "bg-[#f4f5f7]";
   const cardBg = dark ? "bg-[#1f1f1f] hover:bg-[#2a2a2a]" : "bg-white hover:bg-gray-50";
@@ -115,6 +126,23 @@ export default function VideoGrid({
               </div>
             </div>
           ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (error && videos.length === 0) {
+    return (
+      <div className={`${bg} p-6`}>
+        <div className="flex flex-col items-center justify-center py-12">
+          <AlertCircle className={`w-10 h-10 mb-3 ${dark ? "text-red-400" : "text-red-500"}`} />
+          <p className={`${textSecondary} text-sm mb-3`}>{error}</p>
+          <button onClick={handleRefresh}
+            className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${
+              dark ? "bg-white/10 text-white/70 hover:bg-white/20" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}>
+            点击重试
+          </button>
         </div>
       </div>
     );

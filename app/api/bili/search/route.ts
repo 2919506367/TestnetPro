@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const data = await biliFetch(
-      `/x/web-interface/wbi/search/type?search_type=${searchType}&keyword=${encodeURIComponent(keyword)}&page=${page}`,
+      `/x/web-interface/search/type?search_type=${searchType}&keyword=${encodeURIComponent(keyword)}&page=${page}`,
       "https://www.bilibili.com"
     );
 

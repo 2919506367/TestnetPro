@@ -170,7 +170,7 @@ export function mapVideo(raw: Record<string, unknown>) {
     author: String(owner.name || "未知UP主"),
     authorMid: Number(owner.mid || 0),
     authorFace: String(owner.face || ""),
-    cover: String(raw.pic || ""),
+    cover: String(raw.pic || raw.cover || ""),
     playCount: formatCount(stat.view || 0),
     likeCount: formatCount(stat.like || 0),
     danmakuCount: formatCount(stat.danmaku || 0),
