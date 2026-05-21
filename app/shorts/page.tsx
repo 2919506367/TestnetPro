@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import {
   Play, Pause, Volume2, VolumeX, RotateCcw, AlertCircle,
   ExternalLink, Heart, Eye, MessageCircle, Shield, ShieldOff,
@@ -812,6 +813,7 @@ function SearchDrawer({ onClose, onSelectVideo, onSelectUser }: {
 function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
   mid: number; onClose: () => void; onSelectVideo: () => void;
 }) {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [videos, setVideos] = useState<VideoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -838,27 +840,27 @@ function UserProfileOverlay({ mid, onClose, onSelectVideo }: {
           <div className="flex justify-center py-8"><div className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white animate-spin" /></div>
         ) : profile ? (
           <>
-            <div className="flex items-center gap-4 mb-4">
+            <button onClick={() => { router.push(`/bilibili/user/${mid}`); onClose(); }} className="flex items-center gap-4 mb-4 hover:bg-white/[0.04] rounded-xl p-2 -ml-2 transition-colors w-full text-left">
               <BiliImage rawUrl={profile.face} alt="" className="w-16 h-16 rounded-full" />
               <div>
                 <h2 className="text-white text-lg font-semibold">{profile.name}</h2>
                 <p className="text-white/50 text-xs mt-1">{profile.followerCount}粉丝 · {profile.videoCount}视频</p>
                 {profile.sign && <p className="text-white/40 text-xs mt-1">{profile.sign}</p>}
               </div>
-            </div>
+            </button>
             <h3 className="text-white/80 text-sm font-semibold mb-3">作品列表</h3>
             {videos.length === 0 ? (
               <p className="text-white/40 text-sm text-center py-8">暂无公开作品</p>
             ) : (
               <div className="grid grid-cols-2 gap-2">
                 {videos.map((v) => (
-                  <a key={v.id} href={`https://www.bilibili.com/video/${v.bvid}`} target="_blank" rel="noopener noreferrer" onClick={onSelectVideo} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all">
+                  <button key={v.id} onClick={() => { router.push(`/bilibili/video/${v.bvid}`); onSelectVideo(); }} className="block rounded-xl overflow-hidden bg-white/5 hover:bg-white/10 transition-all text-left w-full">
                     <BiliImage rawUrl={v.cover} alt={v.title} className="w-full aspect-video object-cover" loading="lazy" />
                     <div className="p-2">
                       <h4 className="text-white/80 text-xs line-clamp-2 mb-1">{v.title}</h4>
                       <p className="text-white/30 text-[10px]">{v.playCount}播放 · {v.duration}</p>
                     </div>
-                  </a>
+                  </button>
                 ))}
               </div>
             )}

@@ -264,7 +264,7 @@ function BilibiliApp() {
               {searchResults.map((item: any, i: number) => (
                 <button
                   key={i}
-                  onClick={() => window.open(`https://space.bilibili.com/${item.mid}`, "_blank")}
+                  onClick={() => router.push(`/bilibili/user/${item.mid}`)}
                   className={`flex gap-3 p-3 rounded-xl ${dark ? "hover:bg-white/5" : "hover:bg-gray-50"} transition-all w-full text-left`}
                 >
                   <BiliImage rawUrl={item.face} alt="" className="w-12 h-12 rounded-full flex-shrink-0 bg-gray-300" />

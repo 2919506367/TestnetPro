@@ -17,6 +17,8 @@ interface ReplyItem {
   parentAuthor: string;
 }
 
+const REPLY_PAGE_SIZE = 10;
+
 function timeAgo(ts: number): string {
   const diff = Math.floor(Date.now() / 1000 - ts);
   if (diff < 60) return "刚刚";
@@ -40,7 +42,10 @@ export default function CommentSection({
   const [error, setError] = useState("");
   const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
   const [replyData, setReplyData] = useState<Record<number, ReplyItem[]>>({});
+  const [replyPage, setReplyPage] = useState<Record<number, number>>({});
+  const [replyHasMore, setReplyHasMore] = useState<Record<number, boolean>>({});
   const [loadingReplies, setLoadingReplies] = useState<Record<number, boolean>>({});
+  const [loadingMoreReplies, setLoadingMoreReplies] = useState<Record<number, boolean>>({});
 
   const textPrimary = dark ? "text-white/80" : "text-gray-800";
   const textSecondary = dark ? "text-white/40" : "text-gray-500";
@@ -85,6 +90,8 @@ export default function CommentSection({
     setPage(1);
     setExpandedReplies({});
     setReplyData({});
+    setReplyPage({});
+    setReplyHasMore({});
     fetchComments(1, false);
   }, [aid, fetchComments]);
 
@@ -94,7 +101,7 @@ export default function CommentSection({
     fetchComments(nextPage, true);
   };
 
-  const toggleReplies = async (rpid: number) => {
+  const toggleReplies = async (rpid: number, replyCount: number) => {
     if (expandedReplies[rpid]) {
       setExpandedReplies((prev) => ({ ...prev, [rpid]: false }));
       return;
@@ -107,12 +114,30 @@ export default function CommentSection({
 
     setLoadingReplies((prev) => ({ ...prev, [rpid]: true }));
     try {
-      const res = await fetch(`/api/bili/replies?aid=${aid}&root=${rpid}`);
+      const res = await fetch(`/api/bili/replies?aid=${aid}&root=${rpid}&page=1&ps=${REPLY_PAGE_SIZE}`);
       const data = await res.json();
-      setReplyData((prev) => ({ ...prev, [rpid]: data.replies || [] }));
+      const replies = data.replies || [];
+      setReplyData((prev) => ({ ...prev, [rpid]: replies }));
+      setReplyPage((prev) => ({ ...prev, [rpid]: 1 }));
+      setReplyHasMore((prev) => ({ ...prev, [rpid]: data.hasMore || false }));
       setExpandedReplies((prev) => ({ ...prev, [rpid]: true }));
     } catch {} finally {
       setLoadingReplies((prev) => ({ ...prev, [rpid]: false }));
+    }
+  };
+
+  const loadMoreReplies = async (rpid: number) => {
+    setLoadingMoreReplies((prev) => ({ ...prev, [rpid]: true }));
+    const nextPage = (replyPage[rpid] || 1) + 1;
+    try {
+      const res = await fetch(`/api/bili/replies?aid=${aid}&root=${rpid}&page=${nextPage}&ps=${REPLY_PAGE_SIZE}`);
+      const data = await res.json();
+      const newReplies = data.replies || [];
+      setReplyData((prev) => ({ ...prev, [rpid]: [...(prev[rpid] || []), ...newReplies] }));
+      setReplyPage((prev) => ({ ...prev, [rpid]: nextPage }));
+      setReplyHasMore((prev) => ({ ...prev, [rpid]: data.hasMore || false }));
+    } catch {} finally {
+      setLoadingMoreReplies((prev) => ({ ...prev, [rpid]: false }));
     }
   };
 
@@ -162,7 +187,7 @@ export default function CommentSection({
               </span>
               {c.replyCount > 0 && (
                 <button
-                  onClick={() => toggleReplies(c.rpid)}
+                  onClick={() => toggleReplies(c.rpid, c.replyCount)}
                   className={`${textSecondary} text-[9px] flex items-center gap-0.5 ${bgHover} px-1.5 py-0.5 rounded transition-colors`}
                 >
                   {loadingReplies[c.rpid] ? (
@@ -204,6 +229,25 @@ export default function CommentSection({
                 ))}
                 {replyData[c.rpid].length === 0 && (
                   <p className={`${textSecondary} text-[10px] text-center py-1`}>暂无回复</p>
+                )}
+
+                {replyHasMore[c.rpid] && (
+                  <div className="flex justify-center py-1">
+                    <button
+                      onClick={() => loadMoreReplies(c.rpid)}
+                      disabled={loadingMoreReplies[c.rpid]}
+                      className={`text-[9px] px-3 py-1 rounded-full transition-colors ${
+                        dark
+                          ? "text-white/40 hover:text-white/70 hover:bg-white/[0.06]"
+                          : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {loadingMoreReplies[c.rpid] ? (
+                        <Loader2 className="w-2.5 h-2.5 animate-spin inline mr-1" />
+                      ) : null}
+                      加载更多回复
+                    </button>
+                  </div>
                 )}
               </div>
             )}

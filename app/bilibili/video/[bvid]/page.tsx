@@ -207,7 +207,10 @@ function VideoDetail() {
       {/* Header */}
       <header className="sticky top-0 z-30 bg-[#0a0a0a]/95 backdrop-blur border-b border-white/[0.08] px-4 py-3">
         <div className="max-w-[1500px] mx-auto flex items-center gap-3">
-          <button onClick={() => router.push("/bilibili")} className="p-1.5 rounded-lg hover:bg-white/10 text-white/60" title="返回首页">
+          <button onClick={() => {
+            if (window.history.length > 1) router.back();
+            else router.push("/bilibili");
+          }} className="p-1.5 rounded-lg hover:bg-white/10 text-white/60" title="返回">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-sm font-medium text-white/70 line-clamp-1 flex-1">{info?.title || bvid}</h1>

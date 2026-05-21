@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const seed = parseInt(url.searchParams.get("seed") || String(Date.now()), 10);
   const exclude = (url.searchParams.get("exclude") || "").split(",").filter(Boolean);
-  const size = Math.min(8, Math.max(3, parseInt(url.searchParams.get("size") || "5", 10)));
+  const size = Math.min(24, Math.max(3, parseInt(url.searchParams.get("size") || "8", 10)));
 
   try {
     const src = pickSource(seed);

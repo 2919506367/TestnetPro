@@ -32,6 +32,7 @@ export default function VideoGrid({
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(1);
   const loadingRef = useRef(false);
+  const firstLoadDone = useRef(false);
 
   const fetchVideos = useCallback(async (s: number, p: number, append: boolean) => {
     if (loadingRef.current) return;
@@ -41,7 +42,7 @@ export default function VideoGrid({
 
     try {
       const ex = Array.from(seenBvids.current).slice(-50).join(",");
-      const size = 12;
+      const size = append ? 8 : 16;
       const res = await fetch(`/api/bili/feed?seed=${s}&size=${size}&exclude=${ex}&page=${p}`);
       const data = await res.json();
       const list: VideoItem[] = data.videos || [];
@@ -52,6 +53,7 @@ export default function VideoGrid({
         setVideos((prev) => [...prev, ...list]);
       } else {
         setVideos(list);
+        firstLoadDone.current = true;
       }
       setHasMore(list.length >= size);
       setSeed(data.nextSeed || s + 1);
@@ -64,6 +66,7 @@ export default function VideoGrid({
   }, []);
 
   useEffect(() => {
+    firstLoadDone.current = false;
     fetchVideos(seed, 1, false);
   }, [refreshTrigger]);
 
