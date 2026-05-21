@@ -4,16 +4,17 @@ const BILI_API = "https://api.bilibili.com";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
-const RELAY_URL = process.env.RELAY_URL || "";
-const RELAY_KEY = process.env.RELAY_KEY || "bili-relay-internal-2026";
-
 async function relayFetch(path: string, cookies?: string): Promise<{ status: number; body: any } | null> {
+  const relayUrl = process.env.RELAY_URL || "";
+  const relayKey = process.env.RELAY_KEY || "bili-relay-internal-2026";
+  if (!relayUrl) return null;
+
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch(`${RELAY_URL}/api`, {
+    const res = await fetch(`${relayUrl}/api`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "x-relay-key": RELAY_KEY },
+      headers: { "Content-Type": "application/json", "x-relay-key": relayKey },
       body: JSON.stringify({ path, cookies: cookies || process.env.BILI_COOKIE || "" }),
       signal: ctrl.signal,
     });
@@ -51,9 +52,10 @@ function biliHeaders(referer = "https://www.bilibili.com") {
 }
 
 async function tryPlayUrl(bvid: string, cid: string, fnval: number, qn: number) {
+  const relayUrl = process.env.RELAY_URL || "";
   const path = `/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=${qn}&platform=web&fnval=${fnval}&fourk=1`;
 
-  if (RELAY_URL) {
+  if (relayUrl) {
     const r = await relayFetch(path);
     if (r && r.status === 200 && r.body?.code === 0) return r.body;
   }
@@ -103,8 +105,9 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const relayUrl2 = process.env.RELAY_URL || "";
     let cid: any;
-    if (RELAY_URL) {
+    if (relayUrl2) {
       const r = await relayFetch(`/x/player/pagelist?bvid=${bvid}`);
       if (r && r.status === 200 && r.body?.code === 0) {
         cid = r.body.data?.[0]?.cid;
