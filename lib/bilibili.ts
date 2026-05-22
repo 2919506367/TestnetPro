@@ -14,8 +14,9 @@ export function biliHeaders(referer = "https://www.bilibili.com") {
 }
 
 export async function biliFetch(path: string, referer?: string) {
-  const relayUrl = process.env.RELAY_URL || "";
+  const relayUrl = process.env.RELAY_URL || "http://106.14.126.214:3001";
   const relayKey = process.env.RELAY_KEY || "bili-relay-internal-2026";
+  const biliCookie = process.env.BILI_COOKIE || "buvid3=BE2E84CE-C7F2-D9FA-4F28-BFDBE6640BD840825infoc; rpdid=0zbfAHGP7z|NgZFZmUv|hsh|3w1UalVU; DedeUserID=161049576; bili_jct=7dd310d004fd4acf890332d3491ed35b; SESSDATA=e4f3891d%2C1794756738%2C41aea%2A52CjDEIZD6cFAGD8NGlL-PyRhAaxeekepj4P-q38-SOpkAKxpjpBZr00xi7uAQAVizn1cSVnRhYTA5ZnRBeDhhbkRHTUNoRHZKT2RZdm5nYUFQSEVuMm9xdWlCWkRnRjdVdS03SnFfYmRvQ2dYU2xzcVAyeW85M08wY1QtMVBFaTQ2UnJfLXdOV2N3IIEC";
 
   if (relayUrl) {
     try {
@@ -24,7 +25,7 @@ export async function biliFetch(path: string, referer?: string) {
       const res = await fetch(`${relayUrl}/api`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-relay-key": relayKey },
-        body: JSON.stringify({ path, cookies: process.env.BILI_COOKIE || "" }),
+        body: JSON.stringify({ path, cookies: biliCookie }),
         signal: ctrl.signal,
       });
       clearTimeout(t);

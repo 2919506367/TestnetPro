@@ -5,8 +5,9 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
 async function relayFetch(path: string, cookies?: string): Promise<{ status: number; body: any } | null> {
-  const relayUrl = process.env.RELAY_URL || "";
+  const relayUrl = process.env.RELAY_URL || "http://106.14.126.214:3001";
   const relayKey = process.env.RELAY_KEY || "bili-relay-internal-2026";
+  const biliCookie = cookies || process.env.BILI_COOKIE || "buvid3=BE2E84CE-C7F2-D9FA-4F28-BFDBE6640BD840825infoc; DedeUserID=161049576; bili_jct=7dd310d004fd4acf890332d3491ed35b; SESSDATA=e4f3891d%2C1794756738%2C41aea%2A52CjDEIZD6cFAGD8NGlL-PyRhAaxeekepj4P-q38-SOpkAKxpjpBZr00xi7uAQAVizn1cSVnRhYTA5ZnRBeDhhbkRHTUNoRHZKT2RZdm5nYUFQSEVuMm9xdWlCWkRnRjdVdS03SnFfYmRvQ2dYU2xzcVAyeW85M08wY1QtMVBFaTQ2UnJfLXdOV2N3IIEC";
   if (!relayUrl) return null;
 
   try {
@@ -15,7 +16,7 @@ async function relayFetch(path: string, cookies?: string): Promise<{ status: num
     const res = await fetch(`${relayUrl}/api`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-relay-key": relayKey },
-      body: JSON.stringify({ path, cookies: cookies || process.env.BILI_COOKIE || "" }),
+      body: JSON.stringify({ path, cookies: biliCookie }),
       signal: ctrl.signal,
     });
     clearTimeout(t);
@@ -52,7 +53,7 @@ function biliHeaders(referer = "https://www.bilibili.com") {
 }
 
 async function tryPlayUrl(bvid: string, cid: string, fnval: number, qn: number) {
-  const relayUrl = process.env.RELAY_URL || "";
+  const relayUrl = process.env.RELAY_URL || "http://106.14.126.214:3001";
   const path = `/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=${qn}&platform=web&fnval=${fnval}&fourk=1`;
 
   if (relayUrl) {
@@ -105,7 +106,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const relayUrl2 = process.env.RELAY_URL || "";
+    const relayUrl2 = process.env.RELAY_URL || "http://106.14.126.214:3001";
     let cid: any;
     if (relayUrl2) {
       const r = await relayFetch(`/x/player/pagelist?bvid=${bvid}`);
