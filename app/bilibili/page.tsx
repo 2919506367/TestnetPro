@@ -108,11 +108,11 @@ function BilibiliApp() {
   };
 
   const handlePlayFromGrid = (video: VideoItem) => {
-    router.push(`/bilibili/video/${video.bvid}`);
+    window.open(`/bilibili/video/${video.bvid}`, "_blank");
   };
 
   const handlePlayFromSearch = (item: any) => {
-    router.push(`/bilibili/video/${item.bvid}`);
+    window.open(`/bilibili/video/${item.bvid}`, "_blank");
   };
 
   const bg = dark ? "bg-[#0a0a0a]" : "bg-[#f4f5f7]";

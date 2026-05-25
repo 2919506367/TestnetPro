@@ -14,6 +14,43 @@ interface VideoItem {
   description: string; pubdate: number;
 }
 
+const FEED_CACHE_KEY = "bili_feed_cache";
+
+function getCachedIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = sessionStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return new Set();
+    const data = JSON.parse(raw);
+    return new Set((data.videos || []).map((v: {id: string}) => v.id));
+  } catch { return new Set(); }
+}
+
+function hasFeedCache(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return !!sessionStorage.getItem(FEED_CACHE_KEY); } catch { return false; }
+}
+
+function getCachedSeed(): number {
+  if (typeof window === "undefined") return Date.now();
+  try {
+    const raw = sessionStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return Date.now();
+    const data = JSON.parse(raw);
+    return data.nextSeed || Date.now();
+  } catch { return Date.now(); }
+}
+
+function getCachedHasMore(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = sessionStorage.getItem(FEED_CACHE_KEY);
+    if (!raw) return true;
+    const data = JSON.parse(raw);
+    return typeof data.hasMore === "boolean" ? data.hasMore : true;
+  } catch { return true; }
+}
+
 export default function VideoGrid({
   onPlayVideo,
   refreshTrigger,
@@ -23,17 +60,38 @@ export default function VideoGrid({
   refreshTrigger: number;
   dark: boolean;
 }) {
-  const [videos, setVideos] = useState<VideoItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [seed, setSeed] = useState(Date.now());
-  const [hasMore, setHasMore] = useState(true);
+  const [videos, setVideos] = useState<VideoItem[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const cached = sessionStorage.getItem(FEED_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed.videos?.length > 0) return parsed.videos;
+      }
+    } catch {}
+    return [];
+  });
+  const cachedVideoIds = useRef<Set<string>>(getCachedIds());
+  const [loading, setLoading] = useState(!hasFeedCache());
+  const [seed, setSeed] = useState(getCachedSeed);
+  const [hasMore, setHasMore] = useState(getCachedHasMore);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
-  const seenBvids = useRef<Set<string>>(new Set());
+  const seenBvids = useRef<Set<string>>(cachedVideoIds.current);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pageRef = useRef(1);
   const loadingRef = useRef(false);
   const firstLoadDone = useRef(false);
+  const hasCached = useRef(hasFeedCache());
+
+  const saveCache = (vids: VideoItem[], nextSeed: number, more: boolean) => {
+    try {
+      sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify({
+        videos: vids, nextSeed, hasMore: more,
+        timestamp: Date.now(),
+      }));
+    } catch {}
+  };
 
   const fetchVideos = useCallback(async (s: number, p: number, append: boolean) => {
     if (loadingRef.current) return;
@@ -54,17 +112,21 @@ export default function VideoGrid({
 
       list.forEach((v) => seenBvids.current.add(v.id));
 
+      let newList: VideoItem[];
       if (append) {
-        setVideos((prev) => [...prev, ...list]);
+        setVideos((prev) => { newList = [...prev, ...list]; return newList; });
       } else {
+        newList = list;
         setVideos(list);
         firstLoadDone.current = true;
       }
-      setHasMore(list.length >= size);
+      const more = list.length >= size;
+      setHasMore(more);
       setSeed(data.nextSeed || s + 1);
+      setTimeout(() => saveCache(newList!, data.nextSeed || s + 1, more), 100);
     } catch (e) {
       console.error("feed fetch error:", e);
-      if (!append) { setVideos([]); setHasMore(false); setError("推荐视频加载失败"); }
+      if (!append) { setVideos([]); setHasMore(false); setError("推荐视频加载失败"); sessionStorage.removeItem(FEED_CACHE_KEY); }
       else { setHasMore(false); }
     } finally {
       setLoading(false);
@@ -74,8 +136,10 @@ export default function VideoGrid({
   }, [hasMore]);
 
   useEffect(() => {
-    firstLoadDone.current = false;
-    fetchVideos(seed, 1, false);
+    if (!hasCached.current) {
+      firstLoadDone.current = false;
+      fetchVideos(seed, 1, false);
+    }
   }, [refreshTrigger]);
 
   const handleRefresh = () => {
@@ -86,6 +150,8 @@ export default function VideoGrid({
     setSeed(newSeed);
     setError("");
     setHasMore(true);
+    sessionStorage.removeItem(FEED_CACHE_KEY);
+    hasCached.current = false;
     fetchVideos(newSeed, 1, false);
   };
 

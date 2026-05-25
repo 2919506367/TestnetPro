@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 import BiliImage from "../../components/BiliImage";
-import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "../../components/DanmakuLayer";
+import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS, loadDanmakuSettings, saveDanmakuSettings } from "../../components/DanmakuLayer";
 import CommentSection from "../../components/CommentSection";
 
 interface PlayData {
@@ -80,7 +80,7 @@ function VideoDetail() {
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [showFullDesc, setShowFullDesc] = useState(false);
-  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
+  const [danmaku, setDanmaku] = useState<DanmakuSettings>(loadDanmakuSettings);
   const [showDanmakuSettings, setShowDanmakuSettings] = useState(false);
   const [relatedExpanded, setRelatedExpanded] = useState(false);
 
@@ -185,6 +185,8 @@ function VideoDetail() {
   }, [playData?.videoUrl, muted]);
 
   useEffect(() => { if (videoRef.current) videoRef.current.playbackRate = playbackRate; }, [playbackRate]);
+
+  useEffect(() => { saveDanmakuSettings(danmaku); }, [danmaku]);
 
   const syncAudio = () => {
     const v = videoRef.current; const a = audioRef.current;

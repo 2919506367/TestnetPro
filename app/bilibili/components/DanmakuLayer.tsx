@@ -43,6 +43,22 @@ export const DANMAKU_DEFAULTS: DanmakuSettings = {
   dedupe: true,
 };
 
+const DM_STORAGE_KEY = "bili_danmaku_settings";
+
+export function loadDanmakuSettings(): DanmakuSettings {
+  if (typeof window === "undefined") return { ...DANMAKU_DEFAULTS };
+  try {
+    const raw = localStorage.getItem(DM_STORAGE_KEY);
+    if (raw) return { ...DANMAKU_DEFAULTS, ...JSON.parse(raw) };
+  } catch {}
+  return { ...DANMAKU_DEFAULTS };
+}
+
+export function saveDanmakuSettings(s: DanmakuSettings) {
+  if (typeof window === "undefined") return;
+  try { localStorage.setItem(DM_STORAGE_KEY, JSON.stringify(s)); } catch {}
+}
+
 export default function DanmakuLayer({
   cid,
   currentTime,

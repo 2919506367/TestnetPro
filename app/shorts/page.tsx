@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { proxyUrl, formatPubdate } from "@/lib/bilibili";
 import BiliImage from "@/app/bilibili/components/BiliImage";
-import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS } from "@/app/bilibili/components/DanmakuLayer";
+import DanmakuLayer, { DanmakuSettings, DANMAKU_DEFAULTS, loadDanmakuSettings, saveDanmakuSettings } from "@/app/bilibili/components/DanmakuLayer";
 import CommentSection from "@/app/bilibili/components/CommentSection";
 
 /* ============ Types ============ */
@@ -79,7 +79,7 @@ function ShortsApp() {
   const [showUserProfile, setShowUserProfile] = useState(false);
   const [rightPanelAnimating, setRightPanelAnimating] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const [danmaku, setDanmaku] = useState<DanmakuSettings>(DANMAKU_DEFAULTS);
+  const [danmaku, setDanmaku] = useState<DanmakuSettings>(loadDanmakuSettings);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const fetchingRef = useRef(false);
@@ -91,6 +91,8 @@ function ShortsApp() {
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("bili_force_proxy", forceProxy ? "1" : "0");
   }, [forceProxy]);
+
+  useEffect(() => { saveDanmakuSettings(danmaku); }, [danmaku]);
 
   const fetchFeed = useCallback(async (s: number, excludeSet: Set<string>) => {
     if (fetchingRef.current) return;
