@@ -19,6 +19,48 @@ interface ReplyItem {
 
 const REPLY_PAGE_SIZE = 10;
 
+const EMOJI_FALLBACK: Record<string, string> = {
+  "微笑": "😊", "撇嘴": "😣", "色": "😍", "发呆": "😳", "得意": "😎",
+  "流泪": "😭", "害羞": "😊", "闭嘴": "🤐", "睡": "😴", "大哭": "😭",
+  "尴尬": "😅", "发怒": "😡", "调皮": "😜", "呲牙": "😁", "惊讶": "😲",
+  "难过": "😔", "酷": "😎", "冷汗": "😰", "抓狂": "😫", "吐": "🤮",
+  "偷笑": "🤭", "可爱": "🥰", "白眼": "🙄", "傲慢": "😤", "饥饿": "🤤",
+  "困": "🥱", "惊恐": "😱", "流汗": "😓", "憨笑": "😆", "大兵": "😐",
+  "奋斗": "💪", "咒骂": "🤬", "疑问": "🤔", "嘘": "🤫", "晕": "😵",
+  "折磨": "😩", "衰": "😞", "骷髅": "💀", "敲打": "😠", "再见": "👋",
+  "擦汗": "😅", "抠鼻": "🤏", "鼓掌": "👏", "糗大了": "🤦", "坏笑": "😏",
+  "左哼哼": "😤", "右哼哼": "😤", "哈欠": "🥱", "鄙视": "😒", "委屈": "🥺",
+  "快哭了": "😢", "阴险": "😈", "亲亲": "😘", "吓": "😨", "可怜": "🥺",
+  "菜刀": "🔪", "西瓜": "🍉", "啤酒": "🍺", "篮球": "🏀", "乒乓": "🏓",
+  "咖啡": "☕", "饭": "🍚", "猪头": "🐷", "玫瑰": "🌹", "凋谢": "🥀",
+  "示爱": "💕", "爱心": "❤️", "心碎": "💔", "蛋糕": "🎂", "闪电": "⚡",
+  "炸弹": "💣", "刀": "🗡️", "足球": "⚽", "瓢虫": "🐞", "便便": "💩",
+  "月亮": "🌙", "太阳": "☀️", "礼物": "🎁", "拥抱": "🤗", "强": "👍",
+  "弱": "👎", "握手": "🤝", "胜利": "✌️", "抱拳": "🙏", "勾引": "👈",
+  "拳头": "✊", "差劲": "🖕", "爱你": "🤟", "NO": "🙅", "OK": "👌",
+  "doge": "🐶", "笑哭": "😂", "吃瓜": "🍉", "打call": "📣", "妙啊": "👌",
+  "热": "🥵", "冷": "🥶", "脱单doge": "🐕", "辣眼睛": "🙈", "捂脸": "🤦",
+};
+
+function parseContent(raw: string, emotes: Record<string, string>): string {
+  if (!raw) return "";
+  let html = raw
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+  html = html.replace(/\[([^\]]+)\]/g, (_all: string, key: string) => {
+    if (emotes[key]) {
+      return `<img src="${emotes[key]}" alt="${key}" class="inline-block h-5 w-5 align-text-bottom mx-0.5" loading="lazy" />`;
+    }
+    if (EMOJI_FALLBACK[key]) {
+      return `<span class="inline-block text-sm mx-0.5">${EMOJI_FALLBACK[key]}</span>`;
+    }
+    return `[${key}]`;
+  });
+  return html;
+}
+
 function timeAgo(ts: number): string {
   const diff = Math.floor(Date.now() / 1000 - ts);
   if (diff < 60) return "刚刚";
@@ -40,6 +82,7 @@ export default function CommentSection({
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
+  const [emotes, setEmotes] = useState<Record<string, string>>({});
   const [expandedReplies, setExpandedReplies] = useState<Record<number, boolean>>({});
   const [replyData, setReplyData] = useState<Record<number, ReplyItem[]>>({});
   const [replyPage, setReplyPage] = useState<Record<number, number>>({});
@@ -75,6 +118,7 @@ export default function CommentSection({
         setComments((prev) => [...prev, ...list]);
       } else {
         setComments(list);
+        if (data.emotes) setEmotes(data.emotes);
       }
       setHasMore(data.hasMore || false);
     } catch {
@@ -121,6 +165,7 @@ export default function CommentSection({
       setReplyPage((prev) => ({ ...prev, [rpid]: 1 }));
       setReplyHasMore((prev) => ({ ...prev, [rpid]: data.hasMore || false }));
       setExpandedReplies((prev) => ({ ...prev, [rpid]: true }));
+      if (data.emotes) setEmotes((prev) => ({ ...prev, ...data.emotes }));
     } catch {} finally {
       setLoadingReplies((prev) => ({ ...prev, [rpid]: false }));
     }
@@ -136,6 +181,7 @@ export default function CommentSection({
       setReplyData((prev) => ({ ...prev, [rpid]: [...(prev[rpid] || []), ...newReplies] }));
       setReplyPage((prev) => ({ ...prev, [rpid]: nextPage }));
       setReplyHasMore((prev) => ({ ...prev, [rpid]: data.hasMore || false }));
+      if (data.emotes) setEmotes((prev) => ({ ...prev, ...data.emotes }));
     } catch {} finally {
       setLoadingMoreReplies((prev) => ({ ...prev, [rpid]: false }));
     }
@@ -180,7 +226,10 @@ export default function CommentSection({
               <span className={`${textPrimary} text-[11px] font-medium`}>{c.author}</span>
               <span className={`${textSecondary} text-[9px]`}>{timeAgo(c.createdAt)}</span>
             </div>
-            <p className={`${textPrimary} text-xs leading-relaxed`}>{c.content}</p>
+            <p
+              className={`${textPrimary} text-xs leading-relaxed`}
+              dangerouslySetInnerHTML={{ __html: parseContent(c.content, emotes) }}
+            />
             <div className="flex items-center gap-3 mt-1.5">
               <span className={`${textSecondary} text-[9px] flex items-center gap-0.5`}>
                 <Heart className="w-2.5 h-2.5" />{c.likeCount}
@@ -223,7 +272,10 @@ export default function CommentSection({
                         )}
                         <span className={`${textSecondary} text-[8px]`}>{timeAgo(r.createdAt)}</span>
                       </div>
-                      <p className={`${textPrimary} text-[11px] leading-relaxed`}>{r.content}</p>
+                      <p
+                        className={`${textPrimary} text-[11px] leading-relaxed`}
+                        dangerouslySetInnerHTML={{ __html: parseContent(r.content, emotes) }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -267,15 +319,19 @@ export default function CommentSection({
         <div className="flex justify-center py-4">
           <button
             onClick={handleLoadMore}
-            className={`text-xs px-4 py-1.5 rounded-full transition-colors ${
+            className={`text-xs px-6 py-2 rounded-full border font-medium transition-colors ${
               dark
-                ? "text-white/50 hover:text-white/80 hover:bg-white/5"
-                : "text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                ? "text-white/60 border-white/15 hover:text-white/90 hover:border-white/30 hover:bg-white/5"
+                : "text-gray-500 border-gray-200 hover:text-gray-700 hover:border-gray-400 hover:bg-gray-50"
             }`}
           >
             加载更多评论
           </button>
         </div>
+      )}
+
+      {!hasMore && comments.length > 0 && (
+        <p className={`text-center py-4 text-[10px] ${textSecondary}`}>已加载全部评论</p>
       )}
     </div>
   );

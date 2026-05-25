@@ -41,8 +41,16 @@ export async function GET(request: NextRequest) {
     const pageInfo = (data.data?.page || {}) as Record<string, unknown>;
     const totalCount = Number(pageInfo.count || 0);
 
+    const emotes: Record<string, string> = {};
+    const rawEmotes = (data.data?.emote || {}) as Record<string, unknown>;
+    for (const key of Object.keys(rawEmotes)) {
+      const e = rawEmotes[key] as Record<string, unknown>;
+      if (e?.url) emotes[key] = fixUrl(String(e.url));
+    }
+
     return NextResponse.json({
       replies,
+      emotes,
       page,
       hasMore: page * 20 < totalCount,
       total: totalCount,
@@ -50,4 +58,11 @@ export async function GET(request: NextRequest) {
   } catch {
     return NextResponse.json({ replies: [], source: "unavailable" });
   }
+}
+
+function fixUrl(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("http")) return url;
+  return "https://" + url;
 }

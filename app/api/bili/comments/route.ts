@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { biliFetch } from "@/lib/bilibili";
 
+const PS = 20;
+
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
   const aid = url.searchParams.get("aid");
@@ -10,12 +12,19 @@ export async function GET(request: NextRequest) {
 
   try {
     const data = await biliFetch(
-      `/x/v2/reply/main?oid=${aid}&type=1&mode=3&ps=15&pn=${page}`,
+      `/x/v2/reply/main?oid=${aid}&type=1&mode=3&ps=${PS}&pn=${page}`,
       `https://www.bilibili.com/video/av${aid}`
     );
 
     if (!data || data.code !== 0) {
       return NextResponse.json({ comments: [], source: "unavailable" });
+    }
+
+    const emotes: Record<string, string> = {};
+    const rawEmotes = (data.data?.emote || {}) as Record<string, unknown>;
+    for (const key of Object.keys(rawEmotes)) {
+      const e = rawEmotes[key] as Record<string, unknown>;
+      if (e?.url) emotes[key] = fixUrl(String(e.url));
     }
 
     const replies: Record<string, unknown>[] = data.data?.replies || [];
@@ -30,14 +39,24 @@ export async function GET(request: NextRequest) {
       createdAt: Number(r.ctime || 0),
     }));
 
+    const pageInfo = (data.data?.page || {}) as Record<string, unknown>;
+    const totalCount = Number(pageInfo.count || 0);
+
     return NextResponse.json({
       comments,
+      emotes,
       page,
-      hasMore: (data.data?.page as Record<string, unknown>)?.count !== undefined
-        ? page * 15 < Number((data.data?.page as Record<string, unknown>)?.count)
-        : comments.length >= 15,
+      hasMore: totalCount > 0 ? page * PS < totalCount : comments.length >= PS,
+      total: totalCount || comments.length,
     });
   } catch {
     return NextResponse.json({ comments: [], source: "unavailable" });
   }
+}
+
+function fixUrl(url: string): string {
+  if (!url) return "";
+  if (url.startsWith("//")) return "https:" + url;
+  if (url.startsWith("http")) return url;
+  return "https://" + url;
 }
