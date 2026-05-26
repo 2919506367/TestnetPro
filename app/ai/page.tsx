@@ -44,7 +44,7 @@ function AIContent() {
   const [tokenBalance, setTokenBalance] = useState(10000);
   const [messageTokens, setMessageTokens] = useState<Record<number, number>>({});
   const [expandedReasoning, setExpandedReasoning] = useState<Record<number, boolean>>({});
-  const finalReasoningRef = useRef("");
+  const reasoningMap = useRef<Record<number, string>>({});
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
@@ -142,13 +142,14 @@ function AIContent() {
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:"",thinking:true,reasoning:""}; return u; });
             } else if (json.reasoning) {
               streamingReasoning += json.reasoning;
+              reasoningMap.current[msgIndex] = streamingReasoning;
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:streamingReasoning}; return u; });
             } else if (json.reasoning_done) {
-              finalReasoningRef.current = json.reasoning_done;
+              reasoningMap.current[msgIndex] = json.reasoning_done;
               streamingReasoning = "";
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:json.reasoning_done,thinking:false}; return u; });
             } else if (json.reasoning_end) {
-              finalReasoningRef.current = "";
+              delete reasoningMap.current[msgIndex];
               streamingReasoning = "";
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:"",thinking:false}; return u; });
             } else if (json.tokens !== undefined) {
@@ -156,8 +157,7 @@ function AIContent() {
               if (json.remaining !== undefined) setTokenBalance(json.remaining);
             } else if (json.content) {
               streamingContent += json.content;
-              const savedReasoning = finalReasoningRef.current;
-              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:savedReasoning||undefined}; return u; });
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:reasoningMap.current[msgIndex]||undefined}; return u; });
             }
           } catch {}
         }
@@ -319,7 +319,7 @@ function AIContent() {
                         </div>
                       ) : (
                         <div className="space-y-1.5">
-                          {m.reasoning && (
+                          {(m.reasoning || reasoningMap.current[i]) && (
                             <div className="rounded-lg border border-purple-500/15 bg-purple-500/[0.04] dark:border-purple-500/10 dark:bg-purple-500/[0.02]">
                               <button
                                 onClick={() => setExpandedReasoning((prev) => ({ ...prev, [i]: !prev[i] }))}
@@ -332,12 +332,12 @@ function AIContent() {
                                 )}
                                 <span className="text-[10px] text-purple-500 dark:text-purple-400 font-medium">思考过程</span>
                                 {!expandedReasoning[i] && (
-                                  <span className="text-[9px] text-gray-400 dark:text-gray-500 truncate ml-1">{m.reasoning.substring(0, 40)}{m.reasoning.length > 40 ? "..." : ""}</span>
+                                  <span className="text-[9px] text-gray-400 dark:text-gray-500 truncate ml-1">{(m.reasoning || reasoningMap.current[i] || "").substring(0, 40)}{(m.reasoning || reasoningMap.current[i] || "").length > 40 ? "..." : ""}</span>
                                 )}
                               </button>
                               {expandedReasoning[i] && (
                                 <div className="px-2.5 pb-2">
-                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap">{m.reasoning}</p>
+                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap">{m.reasoning || reasoningMap.current[i]}</p>
                                 </div>
                               )}
                             </div>
