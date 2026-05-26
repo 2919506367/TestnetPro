@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle } from "lucide-react";
+import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
 
 interface Msg { role: string; content: string; thinking?: boolean; error?: boolean; reasoning?: string; }
 interface Conv { id: number; title: string; updatedAt: string; }
@@ -43,6 +43,7 @@ function AIContent() {
   const [webSearch, setWebSearch] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(10000);
   const [messageTokens, setMessageTokens] = useState<Record<number, number>>({});
+  const [expandedReasoning, setExpandedReasoning] = useState<Record<number, boolean>>({});
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
@@ -315,8 +316,26 @@ function AIContent() {
                       ) : (
                         <div className="space-y-1.5">
                           {m.reasoning && (
-                            <div className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap border-l-2 border-purple-400/30 pl-2 italic">
-                              {m.reasoning}
+                            <div className="rounded-lg border border-purple-500/15 bg-purple-500/[0.04] dark:border-purple-500/10 dark:bg-purple-500/[0.02]">
+                              <button
+                                onClick={() => setExpandedReasoning((prev) => ({ ...prev, [i]: !prev[i] }))}
+                                className="w-full flex items-center gap-1 px-2.5 py-1.5 hover:bg-purple-500/[0.06] transition-colors rounded-lg"
+                              >
+                                {expandedReasoning[i] ? (
+                                  <ChevronDown className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                ) : (
+                                  <ChevronRight className="w-3 h-3 text-purple-400 flex-shrink-0" />
+                                )}
+                                <span className="text-[10px] text-purple-500 dark:text-purple-400 font-medium">思考过程</span>
+                                {!expandedReasoning[i] && (
+                                  <span className="text-[9px] text-gray-400 dark:text-gray-500 truncate ml-1">{m.reasoning.substring(0, 40)}{m.reasoning.length > 40 ? "..." : ""}</span>
+                                )}
+                              </button>
+                              {expandedReasoning[i] && (
+                                <div className="px-2.5 pb-2">
+                                  <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap">{m.reasoning}</p>
+                                </div>
+                              )}
                             </div>
                           )}
                           <p className="text-sm whitespace-pre-wrap streaming-text">
