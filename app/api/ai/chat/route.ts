@@ -230,11 +230,13 @@ export async function POST(request: NextRequest) {
     if (!reader) throw new Error("No response body");
 
     let fullReply = "";
+    let fullReasoning = "";
+    let startedAnswer = false;
 
     const stream = new ReadableStream({
       async start(controller) {
         const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
+        const decoder = new TextDecoder("utf-8", { stream: true } as any);
         controller.enqueue(encoder.encode(JSON.stringify({ status: "thinking" }) + "\n"));
 
         try {
@@ -296,11 +298,26 @@ export async function POST(request: NextRequest) {
               }
               try {
                 const json = JSON.parse(data);
-                const delta = json.choices?.[0]?.delta?.content;
-                if (delta) {
-                  fullReply += delta;
+                const delta = json.choices?.[0]?.delta;
+                if (!delta) continue;
+                const reasoningChunk = delta.reasoning_content;
+                const contentChunk = delta.content;
+                if (reasoningChunk && !startedAnswer) {
+                  fullReasoning += reasoningChunk;
                   controller.enqueue(
-                    encoder.encode(JSON.stringify({ content: delta }) + "\n")
+                    encoder.encode(JSON.stringify({ reasoning: reasoningChunk }) + "\n")
+                  );
+                }
+                if (contentChunk) {
+                  if (!startedAnswer) {
+                    startedAnswer = true;
+                    controller.enqueue(
+                      encoder.encode(JSON.stringify({ reasoning_end: true }) + "\n")
+                    );
+                  }
+                  fullReply += contentChunk;
+                  controller.enqueue(
+                    encoder.encode(JSON.stringify({ content: contentChunk }) + "\n")
                   );
                 }
               } catch {}

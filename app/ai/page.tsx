@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef, useCallback, Suspense } from "react
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle } from "lucide-react";
 
-interface Msg { role: string; content: string; thinking?: boolean; error?: boolean; }
+interface Msg { role: string; content: string; thinking?: boolean; error?: boolean; reasoning?: string; }
 interface Conv { id: number; title: string; updatedAt: string; }
 interface Provider { id: number; name: string; model: string; avatar: string; }
 interface Memory { id: number; content: string; createdAt: string; }
@@ -117,12 +117,13 @@ function AIContent() {
       if (!res.ok) { const d = await res.json(); setMessages((p) => { const u=[...p]; u[u.length-1]={role:"assistant",content:d.error||"请求失败"}; return u; }); setLoading(false); return; }
 
       let streamingContent = "";
+      let streamingReasoning = "";
       const reader = res.body?.getReader();
       if (!reader) { setLoading(false); return; }
-      const decoder = new TextDecoder();
+      const decoder = new TextDecoder("utf-8", { stream: true } as any);
 
       const msgIndex = messages.length + 1;
-      setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: true }]);
+      setMessages((prev) => [...prev, { role: "assistant", content: "", thinking: true, reasoning: "" }]);
 
       while (true) {
         const { done, value } = await reader.read();
@@ -136,13 +137,19 @@ function AIContent() {
             if (json.status === "error") {
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:json.error||"AI 请求失败",thinking:false,error:true}; return u; });
             } else if (json.status === "thinking") {
-              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:"",thinking:true}; return u; });
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:"",thinking:true,reasoning:""}; return u; });
+            } else if (json.reasoning) {
+              streamingReasoning += json.reasoning;
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:streamingReasoning}; return u; });
+            } else if (json.reasoning_end) {
+              streamingReasoning = "";
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:"",thinking:false}; return u; });
             } else if (json.tokens !== undefined) {
               setMessageTokens((prev) => ({ ...prev, [msgIndex]: json.tokens }));
               if (json.remaining !== undefined) setTokenBalance(json.remaining);
             } else if (json.content) {
               streamingContent += json.content;
-              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false}; return u; });
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:streamingReasoning||undefined}; return u; });
             }
           } catch {}
         }
@@ -288,14 +295,19 @@ function AIContent() {
                           <p className="text-sm whitespace-pre-wrap">{m.content}</p>
                         </div>
                       ) : m.thinking ? (
-                        <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-                          <div className="flex gap-1">
-                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0s"}}/>
-                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.15s"}}/>
-                            <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.3s"}}/>
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
+                            <div className="flex gap-1">
+                              <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0s"}}/>
+                              <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.15s"}}/>
+                              <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0.3s"}}/>
+                            </div>
+                            <span className="text-xs">AI 正在思考</span>
+                            {webSearch && <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"><Search className="w-3 h-3"/> 搜索中</span>}
                           </div>
-                          <span className="text-xs">AI 正在思考</span>
-                          {webSearch && <span className="text-[10px] text-green-600 dark:text-green-400 flex items-center gap-0.5"><Search className="w-3 h-3"/> 搜索中</span>}
+                          {m.reasoning && (
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap italic border-l-2 border-purple-400/20 pl-2">{m.reasoning}</p>
+                          )}
                         </div>
                       ) : (
                         <p className="text-sm whitespace-pre-wrap streaming-text">
