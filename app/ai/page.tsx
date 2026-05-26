@@ -44,6 +44,7 @@ function AIContent() {
   const [tokenBalance, setTokenBalance] = useState(10000);
   const [messageTokens, setMessageTokens] = useState<Record<number, number>>({});
   const [expandedReasoning, setExpandedReasoning] = useState<Record<number, boolean>>({});
+  const finalReasoningRef = useRef("");
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
@@ -143,9 +144,11 @@ function AIContent() {
               streamingReasoning += json.reasoning;
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:streamingReasoning}; return u; });
             } else if (json.reasoning_done) {
+              finalReasoningRef.current = json.reasoning_done;
               streamingReasoning = "";
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:json.reasoning_done,thinking:false}; return u; });
             } else if (json.reasoning_end) {
+              finalReasoningRef.current = "";
               streamingReasoning = "";
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={...u[u.length-1],reasoning:"",thinking:false}; return u; });
             } else if (json.tokens !== undefined) {
@@ -153,7 +156,8 @@ function AIContent() {
               if (json.remaining !== undefined) setTokenBalance(json.remaining);
             } else if (json.content) {
               streamingContent += json.content;
-              setMessages((prev) => { const u=[...prev]; const cur = u[u.length-1]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:cur.reasoning}; return u; });
+              const savedReasoning = finalReasoningRef.current;
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:savedReasoning||undefined}; return u; });
             }
           } catch {}
         }
