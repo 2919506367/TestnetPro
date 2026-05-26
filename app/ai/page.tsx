@@ -153,7 +153,7 @@ function AIContent() {
               if (json.remaining !== undefined) setTokenBalance(json.remaining);
             } else if (json.content) {
               streamingContent += json.content;
-              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:streamingReasoning||undefined}; return u; });
+              setMessages((prev) => { const u=[...prev]; const cur = u[u.length-1]; u[u.length-1]={role:"assistant",content:streamingContent,thinking:false,reasoning:cur.reasoning}; return u; });
             }
           } catch {}
         }
