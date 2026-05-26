@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle } from "lucide-react";
 
 interface Msg { role: string; content: string; thinking?: boolean; error?: boolean; reasoning?: string; }
 interface Conv { id: number; title: string; updatedAt: string; }
@@ -43,7 +43,6 @@ function AIContent() {
   const [webSearch, setWebSearch] = useState(false);
   const [tokenBalance, setTokenBalance] = useState(10000);
   const [messageTokens, setMessageTokens] = useState<Record<number, number>>({});
-  const [expandedReasoning, setExpandedReasoning] = useState<Record<number, boolean>>({});
   const [memories, setMemories] = useState<Memory[]>([]);
   const [showMemories, setShowMemories] = useState(false);
   const [memoryInput, setMemoryInput] = useState("");
@@ -314,27 +313,12 @@ function AIContent() {
                           )}
                         </div>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-1.5">
                           {m.reasoning && (
-                             <div className="rounded-lg border border-purple-500/15 bg-purple-500/5 dark:border-purple-500/10 dark:bg-purple-500/[0.03]">
-                               <button
-                                 onClick={() => setExpandedReasoning((prev) => ({ ...prev, [i]: !prev[i] }))}
-                                 className="w-full flex items-center gap-1.5 px-2.5 py-1.5"
-                               >
-                                 {expandedReasoning[i] ? (
-                                   <ChevronDown className="w-3 h-3 text-purple-400" />
-                                 ) : (
-                                   <ChevronRight className="w-3 h-3 text-purple-400" />
-                                 )}
-                                 <span className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">思考过程</span>
-                               </button>
-                               {expandedReasoning[i] && (
-                                 <div className="px-2.5 pb-2">
-                                   <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed whitespace-pre-wrap">{m.reasoning}</p>
-                                 </div>
-                               )}
-                             </div>
-                           )}
+                            <div className="text-[11px] text-gray-400 dark:text-gray-500 leading-relaxed whitespace-pre-wrap border-l-2 border-purple-400/30 pl-2 italic">
+                              {m.reasoning}
+                            </div>
+                          )}
                           <p className="text-sm whitespace-pre-wrap streaming-text">
                             {m.content.substring(0, Math.max(0, m.content.length - 60))}
                             {[...m.content.substring(Math.max(0, m.content.length - 60))].map((ch, idx) => (
