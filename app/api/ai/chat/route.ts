@@ -311,9 +311,15 @@ export async function POST(request: NextRequest) {
                 if (contentChunk) {
                   if (!startedAnswer) {
                     startedAnswer = true;
-                    controller.enqueue(
-                      encoder.encode(JSON.stringify({ reasoning_end: true }) + "\n")
-                    );
+                    if (fullReasoning) {
+                      controller.enqueue(
+                        encoder.encode(JSON.stringify({ reasoning_done: fullReasoning }) + "\n")
+                      );
+                    } else {
+                      controller.enqueue(
+                        encoder.encode(JSON.stringify({ reasoning_end: true }) + "\n")
+                      );
+                    }
                   }
                   fullReply += contentChunk;
                   controller.enqueue(
