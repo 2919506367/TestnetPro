@@ -2,9 +2,9 @@
 
 import React, { useEffect, useState, useRef, useCallback, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X } from "lucide-react";
+import { ArrowLeft, Bot, Plus, Send, Trash2, Pencil, Loader2, Globe, Search, Brain, X, AlertCircle } from "lucide-react";
 
-interface Msg { role: string; content: string; thinking?: boolean; }
+interface Msg { role: string; content: string; thinking?: boolean; error?: boolean; }
 interface Conv { id: number; title: string; updatedAt: string; }
 interface Provider { id: number; name: string; model: string; avatar: string; }
 interface Memory { id: number; content: string; createdAt: string; }
@@ -133,7 +133,9 @@ function AIContent() {
           if (line === "[DONE]") break;
           try {
             const json = JSON.parse(line);
-            if (json.status === "thinking") {
+            if (json.status === "error") {
+              setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:json.error||"AI 请求失败",thinking:false,error:true}; return u; });
+            } else if (json.status === "thinking") {
               setMessages((prev) => { const u=[...prev]; u[u.length-1]={role:"assistant",content:"",thinking:true}; return u; });
             } else if (json.tokens !== undefined) {
               setMessageTokens((prev) => ({ ...prev, [msgIndex]: json.tokens }));
@@ -280,7 +282,12 @@ function AIContent() {
                         ? "bg-gradient-to-r from-purple-500 to-pink-600 text-white rounded-br-md"
                         : "bg-white dark:bg-gray-800 backdrop-blur-sm border border-gray-200/60 dark:border-gray-700 text-gray-800 dark:text-white rounded-bl-md shadow-sm dark:shadow-black/20"
                     }`}>
-                      {m.thinking ? (
+                      {m.error ? (
+                        <div className="flex items-start gap-2 text-red-600 dark:text-red-400">
+                          <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                          <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                        </div>
+                      ) : m.thinking ? (
                         <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
                           <div className="flex gap-1">
                             <span className="w-2 h-2 rounded-full bg-purple-400 dark:bg-purple-500 animate-bounce" style={{animationDelay:"0s"}}/>

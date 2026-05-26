@@ -206,58 +206,7 @@ export async function POST(request: NextRequest) {
   }
 
   if (!hasApiKey) {
-    const reply = simulateReply(originalContent);
-    const replyTokens = estimateTokens(reply);
-    const totalTokens = userInputTokens + replyTokens;
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(JSON.stringify({ status: "thinking" }) + "\n"));
-        const chars = [...reply];
-        let i = 0;
-        function push() {
-          if (i < chars.length) {
-            controller.enqueue(encoder.encode(JSON.stringify({ content: chars[i] }) + "\n"));
-            i++;
-            setTimeout(push, i === 1 ? 500 : 15);
-          } else {
-            controller.enqueue(
-              encoder.encode(
-                JSON.stringify({
-                  tokens: totalTokens,
-                  remaining: Math.max(0, (userData?.tokenQuota ?? 10000) - totalTokens),
-                }) + "\n"
-              )
-            );
-            controller.enqueue(encoder.encode("[DONE]\n"));
-            controller.close();
-          }
-        }
-        push();
-      },
-    });
-
-    prisma.aIMessage.create({
-      data: { conversationId: convId, role: "assistant", content: reply },
-    });
-    prisma.aIConversation.update({
-      where: { id: convId },
-      data: { updatedAt: new Date() },
-    });
-    prisma.user.update({
-      where: { id: userId },
-      data: { tokenQuota: { decrement: totalTokens } },
-    });
-    prisma.aIUsageLog.create({ data: { userId, tokens: totalTokens } });
-
-    return new NextResponse(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
+    return errorStream("AI 配置错误：未找到可用的 AI 模型，请联系管理员配置 API Key。", 502);
   }
 
   try {
@@ -267,7 +216,15 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ model: modelT, messages: chatMessages, stream: true }),
     });
 
-    if (!response.ok) throw new Error(`AI API error: ${response.status}`);
+    if (!response.ok) {
+      let errorDetail = "";
+      try {
+        const errBody = await response.text();
+        const parsed = JSON.parse(errBody);
+        errorDetail = parsed?.error?.message || parsed?.error?.code || parsed?.msg || "";
+      } catch {}
+      throw new Error(`AI API error: ${response.status}${errorDetail ? ": " + errorDetail : ""}`);
+    }
 
     const reader = response.body?.getReader();
     if (!reader) throw new Error("No response body");
@@ -389,54 +346,21 @@ export async function POST(request: NextRequest) {
         Connection: "keep-alive",
       },
     });
-  } catch {
-    const fallback = searchContext
-      ? "当前无法获取实时联网结果，以下回答基于已有知识。\n\n" + simulateReply(originalContent)
-      : simulateReply(originalContent);
+  } catch (e: any) {
+    const errMsg = e?.message || String(e);
+    const codeMatch = errMsg.match(/(\d{3})/);
+    const statusCode = codeMatch ? parseInt(codeMatch[1]) : 502;
+    const displayMsg = statusCode === 401 || statusCode === 403
+      ? `AI API 认证失败 (${statusCode})：请检查 API Key 是否有效`
+      : statusCode === 429
+      ? `AI API 限流 (429)：请求过于频繁，请稍后重试`
+      : statusCode >= 500
+      ? `AI API 服务器错误 (${statusCode})：上游服务暂不可用，请稍后重试`
+      : statusCode >= 400
+      ? `AI API 请求错误 (${statusCode})`
+      : `AI API 调用失败：${errMsg.substring(0, 100)}`;
 
-    const fallbackTokens = estimateTokens(fallback);
-    const totalTokens = userInputTokens + fallbackTokens;
-    const newQuota = Math.max(0, (userData?.tokenQuota ?? 10000) - totalTokens);
-
-    await prisma.aIMessage.create({
-      data: { conversationId: convId, role: "assistant", content: fallback },
-    });
-    await prisma.aIConversation.update({
-      where: { id: convId },
-      data: { updatedAt: new Date() },
-    });
-    await prisma.user.update({
-      where: { id: userId },
-      data: { tokenQuota: newQuota },
-    });
-    await prisma.aIUsageLog.create({ data: { userId, tokens: totalTokens } });
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(encoder.encode(JSON.stringify({ status: "thinking" }) + "\n"));
-        setTimeout(() => {
-          controller.enqueue(
-            encoder.encode(JSON.stringify({ content: fallback }) + "\n")
-          );
-          controller.enqueue(
-            encoder.encode(
-              JSON.stringify({ tokens: totalTokens, remaining: newQuota }) + "\n"
-            )
-          );
-          controller.enqueue(encoder.encode("[DONE]\n"));
-          controller.close();
-        }, 800);
-      },
-    });
-
-    return new NextResponse(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        Connection: "keep-alive",
-      },
-    });
+    return errorStream(displayMsg, statusCode);
   }
 }
 
@@ -517,13 +441,19 @@ async function handleRollingSummary(
   }
 }
 
-function simulateReply(input: string): string {
-  const replies = [
-    "这是一个很好的问题！让我来帮你分析一下。基于你提供的信息，我建议你可以从以下几个方面考虑。",
-    "感谢你的提问！根据当前的情况，这里有一些建议供你参考。",
-    "我理解你的疑问。让我为你详细解答这个问题。",
-    "好的，我明白了你的需求。让我为你提供一些有用的信息。",
-  ];
-  const base = replies[Math.floor(Math.random() * replies.length)];
-  return base + "\n\n如果你还有其他问题，随时可以问我。";
+function errorStream(errorMsg: string, statusCode?: number): NextResponse {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(JSON.stringify({ status: "error", error: errorMsg, code: statusCode || 502 }) + "\n"));
+      controller.enqueue(encoder.encode("[DONE]\n"));
+      controller.close();
+    },
+  });
+  return new NextResponse(stream, {
+    status: 200,
+    headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" },
+  });
 }
+
+
