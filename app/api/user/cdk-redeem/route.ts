@@ -42,12 +42,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, tokenAmount: cdk.tokenAmount, newBalance });
     }
 
+    const isAdmin = user.role === "ADMIN";
     const base = (user.goldExpiresAt && new Date(user.goldExpiresAt) > now) ? new Date(user.goldExpiresAt) : now;
     const newExpiry = new Date(base.getTime() + cdk.goldDays * 24 * 60 * 60 * 1000);
 
     await prisma.$transaction([
       prisma.cdk.update({ where: { id: cdk.id }, data: { isUsed: true, usedBy: userId, usedAt: now } }),
-      prisma.user.update({ where: { id: userId }, data: { role: "GOLD", goldExpiresAt: newExpiry } }),
+      prisma.user.update({
+        where: { id: userId },
+        data: { ...(isAdmin ? {} : { role: "GOLD" }), goldExpiresAt: newExpiry },
+      }),
     ]);
 
     return NextResponse.json({ success: true, goldExpiresAt: newExpiry.toISOString(), goldDays: cdk.goldDays });
