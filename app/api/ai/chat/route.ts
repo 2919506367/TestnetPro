@@ -210,10 +210,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // 仅对 DeepSeek 模型启用 thinking 参数（其他模型不支持此参数会导致 400 错误）
+    const isDeepSeek = apiUrl.includes("deepseek") || modelT.toLowerCase().includes("deepseek");
+    const requestBody: Record<string, unknown> = { model: modelT, messages: chatMessages, stream: true };
+    if (isDeepSeek) {
+      requestBody.thinking = { type: "enabled" };
+    }
+
     const response = await fetch(`${apiUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: modelT, messages: chatMessages, stream: true, thinking: { type: "enabled" } }),
+      body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
