@@ -10,6 +10,9 @@
 !.yarn/releases
 !.yarn/versions
 
+# deploy script dependencies
+/scripts/deploy/node_modules
+
 # testing
 /coverage
 

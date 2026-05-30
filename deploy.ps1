@@ -19,8 +19,8 @@ if ($Password -is [System.Security.SecureString]) {
 }
 
 $servers = @(
-    @{Name="HK"; Host="38.54.85.8"; Cmd="cd /root/cloud-drive && git pull && npm install && npm run build && pm2 restart cloud-drive && echo '=== HK Deploy OK ==='"},
-    @{Name="CN"; Host="106.14.126.214"; Cmd="cd /root/cloud-drive && git pull && npm install && npm run build && pm2 restart cloud-drive && echo '=== CN Deploy OK ==='"}
+    @{Name="HK"; Host="64.90.4.219"; Cmd="cd /root/cloud-drive && git checkout -- . && git clean -fd && git pull origin main && npm install && npm run build && pm2 delete cloud-drive 2>/dev/null; pm2 start 'npm run start' --name cloud-drive && pm2 save && echo '=== HK Deploy OK ==='"},
+    @{Name="CN"; Host="106.14.126.214"; Cmd="cd /root/cloud-drive && git checkout -- . && git clean -fd && git pull origin main && npm install && npm run build && pm2 delete cloud-drive 2>/dev/null; pm2 start 'npm run start' --name cloud-drive && pm2 save && echo '=== CN Deploy OK ==='"}
 )
 
 $plinkPath = "C:\Program Files\PuTTY\plink.exe"

@@ -1,0 +1,1180 @@
+================================================================================
+  Cloud Drive - 全栈项目技术文档
+================================================================================
+  生成日期: 2026-05-27
+  目的: 为其他开发者/Agent提供完整的项目理解，以便进行修改和维护
+================================================================================
+
+
+一、项目概述 (Project Overview)
+================================================================================
+
+Cloud Drive 是一个基于 Next.js 16 App Router 的全栈 Web 应用，集成了以下核心功能:
+  - 个人云存储（文件上传/下载/文件夹管理）
+  - AI 多模型对话助手（支持联网搜索、长期记忆、思考过程展示）
+  - B站视频浏览与播放（弹幕、评论、代理、清晰度切换）
+  - 抖音热榜浏览
+  - 即时通讯（私聊、群聊、好友系统）
+  - 自定义表情包系统
+  - 用户会员体系（CDK兑换、黄金会员）
+  - 管理后台（CDK管理、用户管理、AI模型管理）
+  - 超级浏览器（服务端网页代理）
+  - 暗色/亮色主题切换
+
+运行平台:
+  - 生产环境: Ubuntu Linux (通过 PM2 管理进程)
+  - 部署服务器: HK (38.54.85.8) + CN (106.14.126.214)
+  - 数据库: PostgreSQL (生产) / SQLite (本地开发)
+
+
+二、技术栈 (Technology Stack)
+================================================================================
+
+[运行时]
+  - Next.js:         16.2.6  (App Router, React Server Components)
+  - React:           19.2.4
+  - TypeScript:      5.x
+  - Node.js:         >=20
+
+[数据库]
+  - ORM:             Prisma 7.8 (输出目录: lib/generated/prisma)
+  - 数据库适配器:    @prisma/adapter-pg (PostgreSQL连接池)
+  - PostgreSQL驱动:  pg (npm包)
+  - 本地开发:        SQLite (prisma/dev.db)
+
+[认证]
+  - JWT库:           jose 6.2.3 (SignJWT / jwtVerify, 算法HS256)
+  - 密码加密:        bcryptjs 3.0.3 (加盐10轮)
+  - 传输方式:        httpOnly Cookie (名为 "token", 7天过期)
+
+[实时通信]
+  - WebSocket库:     socket.io 4.8.3 (客户端+服务端)
+  - 挂载路径:        /api/socketio
+
+[样式]
+  - CSS框架:         Tailwind CSS v4 (通过 @import "tailwindcss" 和 @tailwindcss/postcss)
+  - 图标:            lucide-react 1.14.0
+  - 动画:            CSS @keyframes (fade-in, slide-up, shimmer, cursor-blink, char-appear)
+  - 主题:            CSS变量 (--background, --foreground) + .dark class
+
+[B站/抖音集成]
+  - DOM解析:         cheerio 1.2.0 + jsdom 29.1.1
+  - 网页提取:        @mozilla/readability 0.6.0
+  - HTTP客户端:      axios 1.16.0
+  - 中继代理:        通过环境变量 RELAY_URL 转发请求到代理服务
+
+[邮件]
+  - SMTP库:          nodemailer 8.0.7 (默认QQ邮箱 smtp.qq.com:465)
+
+[文件处理]
+  - 文件上传解析:    busboy 1.6.0
+  - UUID生成:        uuid 14.0.0
+
+[部署]
+  - 进程管理:        PM2
+  - 部署脚本:        deploy.ps1 (PowerShell, 通过 plink/ssh)
+  - 反向代理:        Nginx (nginx_beautyfun_hk.conf)
+
+[开发工具]
+  - TypeScript执行:  tsx 4.21.0
+  - 代码检查:        ESLint 9 (eslint-config-next 16.2.6)
+  - Git忽略:         .gitignore
+
+
+三、项目架构图 (Architecture)
+================================================================================
+
+  ┌─────────────────────────────────────────────────────────┐
+  │                     Nginx (反向代理)                      │
+  └─────────────────────┬───────────────────────────────────┘
+                        │
+  ┌─────────────────────▼───────────────────────────────────┐
+  │              server.ts (自定义HTTP服务器)                  │
+  │  ┌──────────────────┐  ┌───────────────────────────┐    │
+  │  │  Next.js (App)   │  │  Socket.IO (WebSocket)    │    │
+  │  │  端口: 3000      │  │  路径: /api/socketio       │    │
+  │  └────────┬─────────┘  └───────────┬───────────────┘    │
+  └───────────┼────────────────────────┼────────────────────┘
+              │                        │
+  ┌───────────▼──────────┐  ┌──────────▼──────────┐
+  │  App Router (前端)    │  │  API Routes (后端)   │
+  │  - / (首页)          │  │  - /api/auth/*      │
+  │  - /drive            │  │  - /api/drive/*     │
+  │  - /ai               │  │  - /api/ai/*        │
+  │  - /bilibili/*       │  │  - /api/bili/*      │
+  │  - /shorts           │  │  - /api/messages/*  │
+  │  - /douyin           │  │  - /api/groups/*    │
+  │  - /chats            │  │  - /api/friends/*   │
+  │  - /admin            │  │  - /api/admin/*     │
+  │  - /membership       │  │  - /api/proxy       │
+  │  - /emoticons        │  │  - ...等            │
+  │  - /browser          │  └──────────┬──────────┘
+  └──────────────────────┘            │
+                          ┌───────────▼──────────┐
+                          │  lib/ (工具库)        │
+                          │  - auth.ts (认证)     │
+                          │  - db.ts (数据库连接) │
+                          │  - storage.ts (文件)  │
+                          │  - bilibili.ts (B站)  │
+                          │  - search-*.ts (搜索) │
+                          │  - socket/ (WS)      │
+                          └───────────┬──────────┘
+                                      │
+                          ┌───────────▼──────────┐
+                          │  PostgreSQL 数据库     │
+                          │  (Prisma ORM)         │
+                          │  16个数据模型          │
+                          └──────────────────────┘
+
+
+四、完整目录结构 (Directory Structure)
+================================================================================
+
+NetDriveFullStackPro/
+├── app/                            # Next.js App Router 主目录
+│   ├── favicon.ico
+│   ├── globals.css                 # 全局样式 + Tailwind v4 + 动画定义 + 主题变量
+│   ├── layout.tsx                  # 根布局 (ThemeProvider包裹)
+│   ├── page.tsx                    # 首页(登录/注册)
+│   │
+│   ├── admin/page.tsx              # 管理后台 (CDK/用户/AI模型管理, 权限ADMIN)
+│   ├── ai/page.tsx                 # AI对话助手页面
+│   ├── bilibili/
+│   │   ├── layout.tsx              # B站子布局
+│   │   ├── page.tsx                # B站视频浏览主页
+│   │   ├── components/
+│   │   │   ├── BiliImage.tsx       # B站图片代理组件
+│   │   │   ├── CommentSection.tsx  # 评论组件(含表情解析、分页加载)
+│   │   │   ├── DanmakuLayer.tsx    # 弹幕渲染引擎
+│   │   │   ├── SearchBar.tsx       # 搜索栏(防抖400ms)
+│   │   │   ├── VideoGrid.tsx       # 视频网格(IntersectionObserver无限滚动)
+│   │   │   └── VideoPlayerModal.tsx # 全屏播放器模态框
+│   │   ├── video/[bvid]/page.tsx   # B站视频播放详情页
+│   │   └── user/[mid]/page.tsx     # B站用户主页
+│   ├── browser/page.tsx            # 超级浏览器(重定向到/api/proxy)
+│   ├── chats/page.tsx              # 即时通讯页面(私聊+群聊)
+│   ├── douyin/page.tsx             # 抖音热榜页面
+│   ├── drive/page.tsx              # 云盘主页面
+│   ├── emoticons/page.tsx          # 表情包管理页面
+│   ├── membership/page.tsx         # 会员中心(CDK兑换)
+│   ├── shorts/page.tsx             # 短视频竖屏滑动播放
+│   │
+│   └── api/                        # API路由 (服务端)
+│       ├── admin/                  # 管理API
+│       │   ├── cdks/route.ts       # CDK CRUD
+│       │   ├── providers/route.ts  # AI Provider CRUD
+│       │   ├── providers/upload/route.ts # Provider头像上传
+│       │   └── users/route.ts      # 用户管理(列表+封禁)
+│       ├── ai/                     # AI API
+│       │   ├── chat/route.ts       # AI聊天(SSE流式) ★核心文件
+│       │   ├── conversations/route.ts # 对话列表+创建
+│       │   ├── conversations/[id]/route.ts # 对话详情+修改+删除
+│       │   ├── memories/route.ts   # AI记忆列表+创建
+│       │   ├── memories/[id]/route.ts # AI记忆删除
+│       │   ├── providers/route.ts  # 用户端AI Provider列表
+│       │   └── search/route.ts     # AI联网搜索
+│       ├── auth/                   # 认证API
+│       │   ├── captcha/route.ts    # 图形验证码(SVG)
+│       │   ├── login/route.ts      # 登录
+│       │   ├── logout/route.ts     # 登出
+│       │   ├── me/route.ts         # 获取当前用户(有30秒缓存)
+│       │   ├── register/route.ts   # 注册
+│       │   └── send-verify-code/route.ts # 发送邮箱验证码
+│       ├── bili/                   # B站数据API
+│       │   ├── comments/route.ts   # 评论(PS=20, 含emotes)
+│       │   ├── danmaku/route.ts    # 弹幕(XML解析)
+│       │   ├── feed/route.ts       # 推荐视频流
+│       │   ├── related/route.ts    # 相关视频
+│       │   ├── replies/route.ts    # 评论子回复
+│       │   ├── search/route.ts     # 搜索(视频/用户)
+│       │   ├── user/[mid]/route.ts # B站用户信息
+│       │   ├── user/[mid]/videos/route.ts # B站用户视频列表
+│       │   └── video/route.ts      # B站视频详情
+│       ├── bili-proxy/route.ts     # B站资源代理(白名单域名)
+│       ├── chats/                  # 聊天概览API
+│       │   ├── summary/route.ts    # 会话列表摘要
+│       │   └── unread/route.ts     # 未读消息总数
+│       ├── douyin/                 # 抖音API
+│       │   ├── hot/route.ts        # 抖音热搜
+│       │   └── play/route.ts       # 抖音视频播放
+│       ├── douyin-proxy/route.ts   # 抖音资源代理
+│       ├── drive/                  # 网盘API
+│       │   ├── download/[id]/route.ts # 文件下载(流式)
+│       │   ├── files/route.ts       # 文件列表(10秒缓存)
+│       │   ├── files/[id]/route.ts  # 删除文件
+│       │   ├── folders/route.ts     # 文件夹列表+创建(15秒缓存)
+│       │   ├── folders/[id]/files/route.ts # 文件夹内文件
+│       │   └── upload/route.ts      # 文件上传(busboy, 单文件≤10GB)
+│       ├── emoticons/              # 表情API
+│       │   ├── create/route.ts     # 创建表情记录
+│       │   ├── favorite/route.ts   # 收藏他人表情
+│       │   ├── list/route.ts       # 表情列表
+│       │   └── upload/route.ts     # 上传表情图片(≤5MB)
+│       ├── friends/                # 好友API
+│       │   ├── add/route.ts        # 添加好友
+│       │   ├── request/route.ts    # 好友请求(发送+列表)
+│       │   ├── respond/route.ts    # 处理请求(接受/拒绝, 含Socket.IO推送)
+│       │   └── search/route.ts     # 搜索可添加用户
+│       ├── groups/                 # 群聊API
+│       │   ├── create/route.ts     # 创建群聊
+│       │   ├── mark-read/route.ts  # 标记已读
+│       │   ├── messages/route.ts   # 群消息列表
+│       │   ├── send/route.ts       # 发送群消息
+│       │   ├── typing/route.ts     # 正在输入状态
+│       │   └── update-message/route.ts # 撤回/编辑群消息
+│       ├── messages/private/       # 私聊API
+│       │   ├── list/route.ts       # 私信历史
+│       │   ├── mark-read/route.ts  # 标记已读
+│       │   ├── send/route.ts       # 发送私信
+│       │   ├── typing/route.ts     # 正在输入状态
+│       │   └── update/route.ts     # 撤回(2分钟内)/编辑私信
+│       ├── proxy/route.ts          # 通用网页代理(超级浏览器)
+│       ├── shorts/                 # 短视频API
+│       │   ├── feed/route.ts       # 短视频热门流
+│       │   └── play/route.ts       # 获取视频播放地址(DURL/DASH/embedUrl)
+│       └── user/                   # 用户API
+│           ├── cdk-redeem/route.ts # CDK兑换(★已修复管理员角色覆盖bug)
+│           └── nickname/route.ts   # 修改昵称
+│
+├── components/                     # 全局共享组件
+│   ├── ChatConversationList.tsx    # 聊天会话列表
+│   ├── ChatMessageBubble.tsx       # 聊天消息气泡
+│   ├── ConfirmDialog.tsx           # 确认对话框
+│   ├── CreateGroupPanel.tsx        # 创建群组面板
+│   ├── EmoticonPicker.tsx          # 表情选择器
+│   ├── FileList.tsx               # 文件列表
+│   ├── GroupChatBox.tsx           # 群聊输入框
+│   ├── GroupChatRealtime.tsx      # 群聊实时消息
+│   ├── PrivateChatBox.tsx         # 私聊输入框
+│   ├── PrivateChatRealtime.tsx    # 私聊实时消息
+│   ├── ThemeToggle.tsx            # 主题切换按钮
+│   ├── UnreadBadge.tsx            # 未读消息徽章
+│   └── UploadArea.tsx             # 文件上传区域
+│
+├── contexts/ThemeContext.tsx       # 主题Context (light/dark, localStorage持久化)
+├── hooks/useChatSocket.ts          # WebSocket连接Hook (单例模式)
+│
+├── lib/                            # 工具库/核心逻辑
+│   ├── auth.ts                     # JWT认证(createToken/verifyToken/getUserIdFromCookies)
+│   ├── bilibili.ts                 # B站API客户端(relay+直连双模, 图片代理自动切换)
+│   ├── captcha.ts                  # 图形验证码SVG生成
+│   ├── db.ts                       # Prisma+PostgreSQL数据库连接(连接池max=20)
+│   ├── douyin.ts                   # 抖音API客户端
+│   ├── email.ts                    # 邮件发送(nodemailer, QQ邮箱SMTP)
+│   ├── news-tool.ts                # 新闻抓取工具
+│   ├── roles.ts                    # 角色存储限额(GOLD=10GB, USER=5GB)
+│   ├── search-cache.ts            # 搜索结果内存缓存
+│   ├── search-engine.ts           # 多源搜索引擎(百度+搜狗, 8秒超时)
+│   ├── search-router.ts           # 查询类型路由(时间/新闻/网页/知识)
+│   ├── storage.ts                  # 文件存储(UUID重命名, 路径遍历防护)
+│   ├── text-compressor.ts         # 上下文压缩
+│   ├── time-tool.ts               # 时间查询(11时区支持)
+│   ├── verification.ts            # 邮箱验证码(内存Map, TTL 60秒)
+│   ├── web-fetcher.ts             # 网页正文提取(Readability)
+│   ├── socket/
+│   │   ├── auth.ts                # Socket认证(从cookie解析JWT)
+│   │   ├── client.ts              # Socket.IO客户端单例
+│   │   ├── rooms.ts               # 房间名生成(user:/private:/group:)
+│   │   └── server.ts              # Socket.IO服务端(连接认证+房间管理)
+│   └── generated/prisma/          # Prisma自动生成的客户端代码(勿手动编辑)
+│
+├── prisma/                         # 数据库Schema和迁移
+│   ├── dev.db                      # SQLite本地开发数据库
+│   ├── schema.prisma               # Prisma数据模型定义(16个模型)
+│   └── migrations/                 # 数据库迁移历史(4次迁移)
+│       ├── 20260512140424_init/
+│       ├── 20260512143148_add_friend_requests/
+│       ├── 20260513155317_add_provider_avatar/
+│       └── 20260513161735_add_token_quota/
+│
+├── scripts/                        # 实用脚本
+│   ├── check-ai-providers.ts       # 检查AI模型配置
+│   └── fix-ai-providers.ts         # 修复AI模型配置(禁用无效模型)
+│
+├── public/                         # 静态资源
+│   ├── favicon.ico
+│   └── uploads/
+│       ├── avatars/.gitkeep
+│       └── emoticons/.gitkeep
+│
+├── storage/uploads/                # 文件物理存储(.gitkeep)
+│
+├── server.ts                       # ★自定义HTTP服务器入口
+├── proxy.ts                        # Next.js中间件(已登录用户重定向)
+├── types.d.ts                      # 全局类型声明(@mozilla/readability)
+├── next.config.ts                  # Next.js配置(serverExternalPackages)
+├── tsconfig.json                   # TypeScript配置
+├── prisma.config.ts                # Prisma配置(数据库URL, 迁移路径)
+├── postcss.config.mjs              # PostCSS配置(Tailwind v4)
+├── eslint.config.mjs               # ESLint配置
+├── package.json                    # 项目依赖和脚本
+├── create-admin.mjs                # 创建管理员工具脚本
+├── deploy.ps1                      # 部署脚本(SSH到HK+CN服务器)
+├── nginx_beautyfun_hk.conf         # Nginx配置
+├── https-proxy.js                  # HTTPS代理
+└── .gitignore                      # Git忽略规则
+
+
+五、数据库设计 (Database Schema)
+================================================================================
+[文件: prisma/schema.prisma]
+
+数据源: PostgreSQL
+ORM输出: lib/generated/prisma
+
+5.1 User (用户)
+  Int       id              @id @default(autoincrement())
+  String    email           @unique
+  String    password        (bcrypt哈希, 10轮)
+  String    nickname        @unique
+  String    role            @default("USER")  // "USER" | "GOLD" | "ADMIN"
+  Boolean   banned          @default(false)
+  DateTime? goldExpiresAt   (黄金会员到期时间)
+  Int       tokenQuota      @default(10000)   (AI Token余额)
+  DateTime  createdAt       @default(now())
+
+  关联:
+    files[]          -> DriveFile
+    folders[]        -> DriveFolder
+    generatedCdks[]  -> Cdk (作为创建者)
+    redeemedCdks[]   -> Cdk (作为兑换者)
+    sentMessages[]   -> PrivateMessage (作为发送者)
+    receivedMessages[] -> PrivateMessage (作为接收者)
+    aiConversations[] -> AIConversation
+    aiUsageLogs[]    -> AIUsageLog
+    aiQuota?         -> AIQuota (一对一)
+    aiMemories[]     -> AIMemory
+    userFriendships[] -> Friendship
+    friendOf[]       -> Friendship
+    createdGroups[]  -> GroupChat
+    sentRequests[]   -> FriendRequest
+    receivedRequests[] -> FriendRequest
+
+5.2 DriveFolder (网盘文件夹)
+  Int       id        @id @default(autoincrement())
+  Int       userId    (外键 -> User, onDelete: Cascade)
+  String    name
+  DateTime  createdAt
+  DateTime  updatedAt
+
+5.3 DriveFile (网盘文件)
+  Int       id           @id @default(autoincrement())
+  Int       userId       (外键 -> User)
+  Int?      folderId     (外键 -> DriveFolder, onDelete: SetNull)
+  String    originalName (原始文件名)
+  String    storedName   (UUID+扩展名存储)
+  String    mimeType
+  BigInt    size         (文件大小, 字节)
+  String    storagePath
+  DateTime  createdAt
+
+5.4 Cdk (兑换码)
+  Int       id          @id @default(autoincrement())
+  String    code        @unique                (格式: CDK-XXXX-XXXX)
+  Int       goldDays    @default(0)            (VIP天数)
+  Int       tokenAmount @default(0)             (AI Token额度)
+  Boolean   isUsed      @default(false)
+  Int       createdBy   (外键 -> User)
+  Int?      usedBy      (外键 -> User)
+  DateTime? usedAt
+  DateTime  createdAt
+
+5.5 Friendship (好友关系)
+  Int       id        @id @default(autoincrement())
+  Int       userId    (外键 -> User)
+  Int       friendId  (外键 -> User)
+  DateTime  createdAt
+  @@unique([userId, friendId])       // 复合唯一约束
+
+5.6 FriendRequest (好友申请)
+  Int       id         @id @default(autoincrement())
+  Int       fromUserId (外键 -> User)
+  Int       toUserId   (外键 -> User)
+  String    status     @default("PENDING")    // PENDING | ACCEPTED | REJECTED
+  DateTime  createdAt
+  DateTime  updatedAt
+  @@unique([fromUserId, toUserId])
+
+5.7 PrivateMessage (私聊消息)
+  Int       id         @id @default(autoincrement())
+  Int       fromUserId (外键 -> User)
+  Int       toUserId   (外键 -> User)
+  String    content                    (最多2000字)
+  Int?      emoticonId (外键 -> Emoticon)
+  Int?      replyToId  (自引用 -> PrivateMessage, @relation("PrivateMessageReplies"))
+  DateTime? readAt     (已读时间)
+  DateTime? editedAt   (编辑时间)
+  Boolean   isDeleted  @default(false)  (软删除)
+  DateTime  createdAt
+
+5.8 GroupChat (群聊)
+  Int       id          @id @default(autoincrement())
+  String    name        (1-50字符)
+  Int       createdById (外键 -> User)
+  DateTime  createdAt
+
+5.9 GroupChatMember (群成员)
+  Int       id       @id @default(autoincrement())
+  Int       groupId  (外键 -> GroupChat)
+  Int       userId   (外键 -> User)
+  DateTime  joinedAt
+  @@unique([groupId, userId])
+
+5.10 GroupMessage (群消息)
+  Int       id         @id @default(autoincrement())
+  Int       groupId    (外键 -> GroupChat)
+  Int       senderId   (外键 -> User)
+  String    content                    (最多2000字)
+  Int?      emoticonId (外键 -> Emoticon)
+  Int?      replyToId  (自引用)
+  DateTime? readAt
+  DateTime? editedAt
+  Boolean   isDeleted  @default(false)
+  DateTime  createdAt
+
+5.11 Emoticon (表情)
+  Int       id        @id @default(autoincrement())
+  Int       ownerId   (外键 -> User)
+  String    label     (标签名, 1-20字符)
+  String    imageUrl  (图片URL)
+  DateTime  createdAt
+
+5.12 AIConversation (AI对话)
+  Int       id               @id @default(autoincrement())
+  Int       userId           (外键 -> User)
+  String    title            @default("新对话")
+  String?   summary          (滚动摘要文本)
+  Int?      summaryTokens    (摘要token数)
+  Int       totalTokens      @default(0)
+  Int?      lastSummarizedId (上次摘要的最后一条消息ID)
+  DateTime  createdAt
+  DateTime  updatedAt
+
+5.13 AIMessage (AI消息)
+  Int       id             @id @default(autoincrement())
+  Int       conversationId (外键 -> AIConversation)
+  String    role           // "user" | "assistant" | "system"
+  String    content
+  DateTime  createdAt
+
+5.14 AIMemory (AI长期记忆)
+  Int       id        @id @default(autoincrement())
+  Int       userId    (外键 -> User)
+  String    content   (最多500字)
+  DateTime  createdAt
+
+5.15 AIQuota (AI配额)
+  Int       id        @id @default(autoincrement())
+  Int       userId    @unique (一对一关联 User)
+  Int       dailyUsed @default(0)
+  Int       dailyMax  @default(20)
+  String    date      @default("")
+  DateTime  createdAt
+
+5.16 AIUsageLog (AI使用日志)
+  Int       id        @id @default(autoincrement())
+  Int       userId    (外键 -> User)
+  String?   model     (使用的模型名)
+  Int?      tokens    (消耗的token数)
+  DateTime  createdAt
+
+5.17 AiProvider (AI服务商配置)
+  Int       id        @id @default(autoincrement())
+  String    name      (显示名称, 如 "DeepSeek")
+  String    apiUrl    (API地址, 如 "https://api.deepseek.com/v3")
+  String    apiKey    (API密钥)
+  String    model     (模型标识名, 如 "deepseek-chat")
+  String    avatar    @default("") (头像URL)
+  Boolean   isActive  @default(true)
+  DateTime  createdAt
+  DateTime  updatedAt
+
+
+六、认证系统详解 (Authentication)
+================================================================================
+
+6.1 认证流程
+  1. 用户注册/登录 -> 服务端验证 -> 生成JWT (HS256, 7天) -> 设置httpOnly Cookie("token")
+  2. 后续请求 -> 从Cookie读取token -> jwtVerify -> 获取userId -> 查询数据库验证用户
+  3. 登出 -> 清除Cookie
+
+6.2 关键文件
+  - lib/auth.ts:       JWT创建/验证, Cookie管理, 密码哈希, getUserIdFromCookies()
+  - lib/socket/auth.ts: Socket.IO认证(从cookie解析JWT, 数据库验证用户)
+  - lib/captcha.ts:    图形验证码SVG生成(TTL 120秒, 排除易混淆字符)
+  - lib/verification.ts: 邮箱验证码(6位随机数字, TTL 60秒)
+
+6.3 权限级别
+  - USER:  普通用户, 注册默认角色, 存储上限5GB
+  - GOLD:  黄金会员(通过VIP CDK兑换), 存储上限10GB, 昵称金色流光特效
+  - ADMIN: 管理员(通过create-admin.mjs创建或数据库直接修改), 可访问/admin页面
+
+6.4 重要安全注意事项
+  - ADMIN角色在CDK兑换VIP时不应被降级(已在app/api/user/cdk-redeem/route.ts修复)
+  - 管理员不可被封禁(app/admin/page.tsx已限制)
+  - 密码使用bcryptjs加盐10轮存储
+
+
+七、API路由详解 (API Routes)
+================================================================================
+
+7.1 认证模块 (app/api/auth/)
+  POST /api/auth/login            - 登录(email, password, captchaInput)
+  POST /api/auth/register         - 注册(email, password, nickname, captchaInput, emailCode)
+  POST /api/auth/logout           - 登出(清除cookie)
+  GET  /api/auth/me               - 获取当前用户(30秒内存缓存, 最多500条)
+  GET  /api/auth/captcha          - 生成验证码SVG(token存入cookie: captcha_token)
+  POST /api/auth/send-verify-code - 发送邮箱验证码(email, 10秒频率限制)
+
+7.2 管理模块 (app/api/admin/)
+  权限: 必须ADMIN角色
+
+  GET    /api/admin/cdks           - CDK列表(含redeemer)
+  POST   /api/admin/cdks           - 生成CDK(goldDays/tokenAmount/count, 最多50个)
+  DELETE /api/admin/cdks           - 删除CDK({id})
+
+  GET    /api/admin/users          - 用户列表(含_files.count)
+  POST   /api/admin/users          - 封禁/解封用户({targetUserId, banned})
+
+  GET    /api/admin/providers      - AI Provider列表
+  POST   /api/admin/providers      - 创建Provider({name, apiUrl, apiKey, model, avatar, isActive})
+  PUT    /api/admin/providers      - 更新Provider({id, ...fields})
+  DELETE /api/admin/providers      - 删除Provider({id})
+  POST   /api/admin/providers/upload - 上传Provider头像(multipart, image字段, ≤2MB)
+
+7.3 云盘模块 (app/api/drive/)
+  GET    /api/drive/files          - 文件列表(?folderId, 10秒内存缓存)
+  DELETE /api/drive/files/[id]     - 删除文件(磁盘+数据库)
+  GET    /api/drive/folders        - 文件夹列表(15秒缓存, 无文件夹则自动创建)
+  POST   /api/drive/folders        - 创建文件夹({name})
+  GET    /api/drive/folders/[id]/files - 文件夹内文件
+  POST   /api/drive/upload         - 上传文件(multipart, folderId可选, 单文件≤10GB, 按角色限额)
+  GET    /api/drive/download/[id]  - 下载文件(Content-Disposition: attachment)
+
+7.4 AI模块 (app/api/ai/)
+  POST   /api/ai/chat              - ★核心: AI聊天(SSE流式响应)
+     参数: {conversationId?, message, providerId?, context?}
+     特性:
+       - Token预算管理(CONTEXT_BUDGET=8000), 智能截断历史
+       - 滚动摘要: 首20条触发首次摘要, 后每12条更新
+       - 支持thinking/reasoning_content (思考过程)
+       - 支持联网搜索上下文注入
+       - 支持记忆系统(匹配"记住/记下/备忘"模式自动添加)
+       - 扣除tokenQuota, 记录AIUsageLog
+       - SSE消息类型: {status:"thinking"}, {reasoning}, {content}, {reasoning_done}, {tokens,remaining}, [DONE]
+       - 向AI请求体发送 thinking: {type:"enabled"} 强制获取推理过程
+       - 使用 TextDecoder stream mode 处理emoji编码
+
+  GET    /api/ai/conversations     - 对话列表(最多50条, 按updatedAt降序)
+  POST   /api/ai/conversations     - 创建对话({title默认"新对话"})
+  GET    /api/ai/conversations/[id]- 对话详情(含全部消息)
+  PATCH  /api/ai/conversations/[id]- 修改对话标题({title})
+  DELETE /api/ai/conversations/[id]- 删除对话(级联删除消息)
+
+  GET    /api/ai/memories          - 记忆列表(最多50条)
+  POST   /api/ai/memories          - 创建记忆({content, 最多500字})
+  DELETE /api/ai/memories/[id]     - 删除记忆(验证所有权)
+
+  GET    /api/ai/providers         - 用户端活跃Provider列表(id, name, model, avatar)
+  POST   /api/ai/search            - 联网搜索({q}), 路由到时间/新闻/网页/知识
+
+7.5 B站模块 (app/api/bili/)
+  GET /api/bili/video?bvid=       - 视频详情
+  GET /api/bili/feed?seed=&exclude=&size=  - 推荐视频流(3-24,默认8)
+  GET /api/bili/search?q=&type=&page=    - 搜索(视频/用户)
+  GET /api/bili/comments?aid=&page=      - 评论(PS=20, 含emotes, hasMore)
+  GET /api/bili/replies?aid=&root=&page= - 子回复
+  GET /api/bili/danmaku?cid=            - 弹幕(XML解析)
+  GET /api/bili/related?bvid=           - 相关视频
+  GET /api/bili/user/[mid]              - B站用户信息
+  GET /api/bili/user/[mid]/videos?page=&size=&sort=&search= - 用户视频
+
+7.6 代理模块
+  GET /api/bili-proxy?url=         - B站资源代理(仅允许bilibili.com/bilivideo.com/hdslb.com)
+  GET /api/douyin-proxy?url=       - 抖音资源代理(30秒超时, 24h缓存)
+  ALL /api/proxy?url=&ref=         - 通用网页代理(HTML重写所有链接, 注入客户端JS拦截fetch/XHR)
+
+7.7 短视频模块 (app/api/shorts/)
+  GET /api/shorts/feed?page=&size= - 热门短视频(5-30,默认15, 有fallback)
+  GET /api/shorts/play?bvid=&qn=   - 播放地址(DURL->DASH->embedUrl三级fallback, 5分钟缓存)
+
+7.8 抖音模块 (app/api/douyin/)
+  GET /api/douyin/hot?keyword=     - 热搜榜(上限40条)
+  GET /api/douyin/play?id=         - 视频播放地址
+
+7.9 即时通讯模块
+  私聊 (app/api/messages/private/):
+    POST /send       - 发送私信({targetUserId, content≤2000, emoticonId?, replyToId?})
+    GET  /list?targetUserId=  - 私信历史
+    POST /update     - 撤回(2分钟内)/编辑
+    POST /mark-read  - 标记已读
+    POST /typing     - 通知正在输入
+    GET  /typing?targetUserId=  - 查询对方正在输入
+
+  群聊 (app/api/groups/):
+    POST /create     - 创建群聊({name ≤50, memberIds[]})
+    POST /send       - 发送群消息({groupId, content≤2000, emoticonId?, replyToId?})
+    GET  /messages?groupId=  - 群消息列表
+    POST /mark-read  - 标记已读
+    POST /update-message - 撤回/编辑
+    POST /typing     - 通知正在输入
+    GET  /typing?groupId=  - 查询群内正在输入
+
+  好友 (app/api/friends/):
+    GET  /request     - 已收到的好友请求(PENDING)
+    POST /request     - 发送好友请求({toUserId})
+    GET  /add         - 好友列表
+    POST /add         - 添加好友({friendId})
+    POST /respond     - 处理请求({requestId, action:"accept"|"reject"}) -> 含Socket推送
+    GET  /search?q=   - 搜索可添加用户(排除自己/已有好友/已有待处理请求)
+
+  聊天概览 (app/api/chats/):
+    GET /summary      - 会话列表(私聊+群聊合并排序)
+    GET /unread       - 总未读消息数
+
+7.10 表情模块 (app/api/emoticons/)
+  POST /upload        - 上传图片(multipart, image≤5MB, PNG/JPG/GIF/WEBP)
+  POST /create        - 创建表情记录({label ≤20, imageUrl})
+  GET  /list          - 表情列表
+  POST /favorite      - 收藏表情({emoticonId})
+
+7.11 用户模块 (app/api/user/)
+  PUT  /nickname      - 修改昵称({nickname, 1-20字符, 检查重复})
+  POST /cdk-redeem    - 兑换CDK({code, type:"vip"|"token"}, ★已修复管理员角色保护)
+
+
+八、前端页面详解 (Frontend Pages)
+================================================================================
+
+所有页面均为 "use client" 客户端组件，使用Suspense包裹(无单独loading.tsx)。
+状态管理: useState/useRef/useCallback/useEffect, 无Redux/Zustand。
+持久化: localStorage/sessionStorage/URL Search Params。
+
+8.1 首页 (/app/page.tsx) - 登录/注册页
+  - 两种模式切换: login / register
+  - 登录: 邮箱+密码+图形验证码(SVG)
+  - 注册: 额外需要昵称+邮箱验证码(60秒冷却)
+  - 已登录自动跳转 /drive
+  - 成功后将用户信息存入 sessionStorage("authUser")
+
+8.2 云盘 (/app/drive/page.tsx)
+  - 侧边栏: 文件夹列表 + 导航入口(会员/AI/消息/表情/抖音/B站/浏览器/管理后台)
+  - 存储统计: 显示已用/上限(USER=5GB, GOLD=10GB)带进度条
+  - 文件夹: 创建(弹窗)/进入/面包屑返回
+  - 文件: UploadArea上传, FileList展示, 下载/删除(ConfirmDialog)
+  - 黄金会员: 昵称金色流光(gold-text)、头像金色渐变背景
+
+8.3 B站主页 (/app/bilibili/page.tsx)
+  - VideoGrid: IntersectionObserver无限滚动, sessionStorage缓存
+  - 搜索: 视频/用户双类型, 防抖400ms, 分页加载更多
+  - 代理开关: localStorage("bili_force_proxy")
+
+8.4 B站视频播放 (/app/bilibili/video/[bvid]/page.tsx)
+  - 6阶段生命周期: loading->resolving->buffering->playing/paused/error
+  - DASH音视频分离播放, 清晰度切换(240P~1080P)
+  - 弹幕: DanmakuLayer CSS动画(滚动/固定), 透明度/字号/速度可调
+  - 评论: CommentSection (20条/页, 表情解析, 楼中楼回复)
+  - 相关推荐: 侧边面板, 大屏常显, 小屏折叠
+  - 8秒超时自动切换代理
+
+8.5 短视频 (/app/shorts/page.tsx) - 最复杂页面
+  - 竖屏snap滑动(类似TikTok), 键盘上下键
+  - 懒加载预取后续2个视频
+  - 弹幕系统(完整设置面板: 透明度/字号/速度/屏蔽/去重)
+  - 右侧评论面板(滑动滑出)
+  - 搜索抽屉 + 用户主页弹层
+  - 播放速率循环切换(0.5x~2x)
+  - 控制栏4秒自动隐藏
+  - 缓冲速度实时显示(MB/s)
+  - 包含大量子组件: SearchDrawer, UserProfileOverlay, PlayerOverlay, CommentPanel, DanmakuPanel, ControlsOverlay, VideoControls, VolumeControl等
+
+8.6 AI助手 (/app/ai/page.tsx)
+  - 多模型选择(下拉, 显示头像)
+  - 对话管理: 新建/重命名/删除
+  - 流式聊天: SSE逐字渲染, 思考过程(reasoning)折叠展示
+  - 思考动画: 跳动圆点
+  - 联网搜索开关
+  - Token余额显示
+  - 长期记忆面板(左侧底部): 手动添加/删除, "记住：xxx"自动添加
+  - 快捷建议: 4条初始问题
+  - 使用useRef避免React批处理覆写问题(★已修复AI回复消失bug)
+
+8.7 聊天 (/app/chats/page.tsx)
+  - 左侧: ChatConversationList(私聊+群聊)
+  - 右侧: PrivateChatRealtime / GroupChatRealtime
+  - 好友搜索 + 好友请求管理(接受/拒绝)
+  - 创建群聊面板
+  - URL参数路由: ?kind=private&id=X 或 ?kind=group&id=Y
+
+8.8 会员中心 (/app/membership/page.tsx)
+  - 身份状态卡片(普通/黄金, 到期时间, 存储空间)
+  - Token余额显示
+  - VIP CDK兑换: 输入码+自动大写+回车提交
+  - Token CDK兑换
+  - 权益展示: 10GB空间, 流光昵称等
+
+8.9 管理后台 (/app/admin/page.tsx)
+  - 三Tab切换: CDK管理 / 用户管理 / AI模型
+  - CDK: VIP天数+数量 / Token额度+数量, 生成后自动复制
+  - 用户: 列表(昵称/角色/文件数/到期/状态), 封禁/解封(管理员不可操作)
+  - AI模型: 增删改查, 头像上传, 启用/停用开关
+
+8.10 其他页面
+  /douyin       - 抖音热榜(前3橙色高亮, 搜索, 刷新)
+  /emoticons     - 表情管理(上传≤5MB+标签, 网格展示)
+  /bilibili/user/[mid] - B站UP主主页(作品列表+搜索+排序+分页)
+  /browser       - 超级浏览器(直接重定向到/api/proxy)
+
+
+九、核心共享组件 (Shared Components)
+================================================================================
+
+  ChatConversationList.tsx  - 会话列表(私聊+群聊+好友申请数量徽章)
+  ChatMessageBubble.tsx     - 通用消息气泡(含表情/回复引用/已读状态/编辑标记)
+  ConfirmDialog.tsx         - 确认对话框(标题/描述/确认/取消)
+  CreateGroupPanel.tsx      - 创建群聊(输入名称+多选好友)
+  EmoticonPicker.tsx        - 表情选择器(弹窗网格)
+  FileList.tsx              - 文件列表(含下载/删除按钮)
+  GroupChatBox.tsx          - 群聊输入框(含表情/发送)
+  GroupChatRealtime.tsx     - 群聊实时消息(Socket.IO监听new_message/update/read)
+  PrivateChatBox.tsx        - 私聊输入框
+  PrivateChatRealtime.tsx   - 私聊实时消息
+  ThemeToggle.tsx           - 主题切换按钮(太阳/月亮图标)
+  UnreadBadge.tsx           - 未读消息数红色徽章
+  UploadArea.tsx            - 文件上传拖拽区域(含进度/错误处理)
+
+B站专用组件 (app/bilibili/components/):
+  BiliImage.tsx            - B站图片组件(onError->代理, onLoad->直连, 3次失败自动切代理)
+  CommentSection.tsx       - 评论(20条/页, 表情解析parseContent, 楼中楼回复加载更多)
+  DanmakuLayer.tsx         - 弹幕引擎(CSS动画+requestAnimationFrame+轨道管理+去重)
+  SearchBar.tsx            - 搜索下拉(400ms防抖, 视频/用户切换)
+  VideoGrid.tsx            - 视频网格(IntersectionObserver无限滚动+sessionStorage缓存)
+  VideoPlayerModal.tsx     - 全屏播放器(完整播放/弹幕/评论/清晰度/倍速/缓冲速度)
+
+
+十、工具库详解 (Library Modules)
+================================================================================
+
+10.1 认证 (lib/auth.ts)
+  - createToken(userId) -> JWT (7天, HS256)
+  - verifyToken(token) -> userId | null
+  - getUserIdFromCookies() -> userId | null (从"token" cookie)
+  - setAuthCookie(token) / clearAuthCookie()
+  - hashPassword(password) / verifyPassword(password, hash)
+  - JWT_SECRET 来自 process.env.JWT_SECRET 或默认值
+
+10.2 数据库 (lib/db.ts)
+  - 使用 @prisma/adapter-pg + pg.Pool
+  - 连接池: max=20, connectionTimeout=30000ms, idleTimeout=120000ms
+  - PrismaClient单例模式(开发环境复用globalThis)
+
+10.3 文件存储 (lib/storage.ts)
+  - 存储根目录: process.cwd()/storage/uploads
+  - sanitizeFilename(): UUID v4 + 原始扩展名
+  - getStoragePath(): 路径遍历防护(path.resolve + startsWith检查)
+  - deleteFile() / fileExists() / getUploadDir()
+  - decodeFilename(): latin1->UTF-8中文乱码修复
+  - sanitizeFolderName(): 移除 <>:"/\|?* 和不可打印字符
+
+10.4 角色管理 (lib/roles.ts)
+  - getStorageLimit(role): GOLD=10GB, 其他=5GB
+  - formatLimit(role): "10 GB" / "5 GB"
+  - isAdmin(role): role === "ADMIN"
+
+10.5 B站客户端 (lib/bilibili.ts)
+  - biliFetch(path): relay+直连双模, 8秒超时
+  - relayUrl来自 RELAY_URL 环境变量, relayKey来自 RELAY_KEY
+  - 图片模式自动切换: getImageMode()="direct"|"proxy", 3次失败->代理
+  - IMG_PLACEHOLDER: 加载失败占位图SVG
+  - resolveImageUrl(): 根据模式返回直连或代理URL
+  - imgOnError/OnLoad: 记录失败/成功次数, 自动切换
+  - 工具函数: formatCount, formatDuration, formatPubdate(刚刚/N分钟前等), shuffleArray, mapVideo
+
+10.6 Socket.IO (lib/socket/)
+  - server.ts: 初始化Socket.IO(路径/api/socketio, CORS *), 认证中间件(从cookie解析JWT)
+    事件: connection(加入user房间), private:join/leave/typing, group:join/leave/typing
+  - client.ts: 客户端单例(autoConnect:false, withCredentials:true)
+  - auth.ts: getSocketSessionUser() 从cookie解析token, 验证banned状态
+  - rooms.ts: buildUserRoom(userId), buildPrivateRoom(min:max), buildGroupRoom(groupId)
+
+10.7 搜索系统 (lib/search-*.ts)
+  - search-router.ts: 4种查询类型匹配(时间/新闻/网页/知识)
+  - search-engine.ts: 多源搜索引擎(百度+搜狗并发, 8秒超时, 去重+归一化+排序)
+  - search-cache.ts: 内存Map缓存, TTL管理
+  - web-fetcher.ts: axios+jsdom+readability提取正文, qualityScore评分
+  - text-compressor.ts: 上下文压缩(3000字符上限) + AI prompt构建
+  - time-tool.ts: 11时区时间查询
+  - news-tool.ts: 今日头条热点抓取(10分钟缓存)
+
+10.8 其他工具
+  - captcha.ts: SVG验证码(5字符, 排除0O1I等, 扭曲+线条+噪点, TTL 120秒)
+  - verification.ts: 邮箱验证码(6位数字, 内存Map, TTL 60秒, 校验即删除)
+  - email.ts: nodemailer发件(QQ邮箱SMTP, HTML格式)
+
+
+十一、关键配置 (Configuration)
+================================================================================
+
+11.1 package.json scripts
+  - dev:    npx tsx server.ts       (开发模式: tsx直接运行TypeScript)
+  - build:  next build              (Next.js构建)
+  - start:  next start -p 3000      (生产启动)
+  - lint:   eslint
+
+11.2 next.config.ts
+  - serverExternalPackages: ["busboy", "socket.io", "socket.io-client", "jsdom", "pg", "jose"]
+    (这些包在服务端不作为webpack打包目标)
+
+11.3 tsconfig.json
+  - target: ES2017
+  - module: esnext (moduleResolution: bundler)
+  - react-jsx (React 19新JSX转换)
+  - 严格模式, 路径别名 @/* -> 项目根目录
+
+11.4 postcss.config.mjs
+  - 使用 @tailwindcss/postcss 插件 (Tailwind CSS v4)
+
+11.5 prisma.config.ts
+  - schema: prisma/schema.prisma
+  - migrations: prisma/migrations
+  - datasource.url: process.env.DATABASE_URL
+
+11.6 全局样式 (app/globals.css)
+  - @import "tailwindcss" (V4)
+  - CSS变量: --background, --foreground (支持.dark)
+  - @theme inline: 自定义颜色+动画
+  - 动画: fade-in, slide-up, shimmer(金色流光), cursor-blink(打字光标), char-appear(字符弹出)
+  - 黄金会员: .gold-text(渐变色+流光), .gold-badge(金色徽章)
+  - 滚动条自定义(暗色适配)
+
+
+十二、环境变量 (Environment Variables)
+================================================================================
+
+必需:
+  DATABASE_URL         - PostgreSQL连接字符串
+  JWT_SECRET           - JWT签名密钥 (默认: "cloud-drive-secret-key-change-in-production")
+
+邮件:
+  SMTP_HOST            - SMTP服务器 (默认: smtp.qq.com)
+  SMTP_PORT            - SMTP端口 (默认: 465)
+  SMTP_USER            - 邮箱账号
+  SMTP_PASS            - 邮箱密码/授权码
+
+B站:
+  BILI_COOKIE          - B站Cookie (用于API认证)
+  RELAY_URL            - B站中继代理URL (如 http://106.14.126.214:3001)
+  RELAY_KEY            - 中继代理密钥 (默认: "bili-relay-internal-2026")
+
+抖音:
+  DOUYIN_COOKIE        - 抖音Cookie
+
+开发模式:
+  DISABLE_CAPTCHA      - 跳过图形验证码验证
+  DISABLE_EMAIL_VERIFY - 跳过邮箱验证码验证
+
+端口:
+  PORT                 - 服务端口 (默认: 3000)
+
+NODE_ENV              - 运行环境 ("production" | "development")
+
+
+十三、部署 (Deployment)
+================================================================================
+
+13.1 部署脚本 (deploy.ps1)
+  - 部署到两台服务器: HK(38.54.85.8) + CN(106.14.126.214)
+  - 使用plink(PuTTY)或ssh连接
+  - 执行命令: cd /root/cloud-drive && git pull && npm install && npm run build && pm2 restart cloud-drive
+  - 密码通过参数或交互式输入
+
+13.2 开发脚本 (create-admin.mjs)
+  - 使用libsql客户端直接操作SQLite数据库
+  - 创建/更新管理员: admin@cloud.com / admin123
+  - 对于PostgreSQL: 需直接数据库操作或通过API
+
+13.3 PM2进程管理
+  - 进程名: cloud-drive
+  - 命令: npm run start (next start -p 3000)
+
+
+十四、关键编码模式和约定 (Coding Patterns)
+================================================================================
+
+14.1 通用模式
+  - 所有页面: "use client" + Suspense包裹
+  - 认证: 每个API路由调用getUserIdFromCookies()获取用户ID
+  - 错误处理: 通过error状态变量 + 条件渲染, 不使用error.tsx
+  - 加载状态: Suspense fallback显示spinner, 无loading.tsx
+  - 缓存: 内存Map, TTL 5-30秒(按需), 自清理
+  - 数据获取: useEffect + fetch + useState
+  - 防止重入: useRef(fetchingRef) 模式
+
+14.2 API响应格式
+  - 成功: NextResponse.json({...data})
+  - 错误: NextResponse.json({error:"..."}, {status:4xx/5xx})
+  - 流式: ReadableStream (text/event-stream)
+
+14.3 数据库操作模式
+  - 单查询: prisma.model.findUnique/Create/Update/Delete
+  - 事务: prisma.$transaction([...])
+  - 外键: onDelete: Cascade 级联删除
+
+14.4 Socket.IO 模式
+  - 服务端: 事件监听(join/leave/typing), 通过rooms隔离
+  - 客户端: 单例getChatSocket(), autoConnect:false, 通过useEffect连接
+  - 认证: 中间件从cookie解析JWT
+
+14.5 B站API模式
+  - relay优先(RELAY_URL+RELAY_KEY), 失败自动fallback直连
+  - 图片: 直连优先, 3次失败自动切换代理, localStorage持久化
+  - 代理: bili-proxy路由白名单域名(bilibili.com/bilivideo.com/hdslb.com)
+
+14.6 样式约定
+  - Tailwind v4: @import "tailwindcss"
+  - 主题: .dark class + CSS变量
+  - 响应式: Tailwind breakpoint (sm/md/lg/xl)
+  - 动画: CSS @keyframes + Tailwind animate-*
+  - 色彩: Tailwind gray/slate/blue/purple/amber/green/red
+
+十四、已知问题修复记录 (Recent Bug Fixes)
+================================================================================
+
+1. 评论区emoji不显示 [2026-05]
+   - 在 app/api/bili/comments/route.ts 返回 emotes 数据
+   - 在 CommentSection.tsx 添加 parseContent() 函数
+   - 使用 dangerouslySetInnerHTML 渲染带emoji的HTML
+   - 添加 EMOJI_FALLBACK Unicode映射降级
+
+2. 评论区只加载3条评论 [2026-05]
+   - 将PS从默认改为20
+   - 修正hasMore计算逻辑
+   - 添加"加载更多"按钮
+
+3. AI思考过程不显示 [2026-05]
+   - 后端: 在 app/api/ai/chat/route.ts 处理 reasoning_content delta
+   - 前端: 添加 expandedReasoning 状态和折叠UI
+   - 使用 useRef 存储reasoning避免React批处理问题
+
+4. AI回复写完突然消失 [2026-05]
+   - 原因: React批处理导致reasoning状态覆盖messages状态
+   - 修复: 使用 reasoningMap = useRef<Record<number,string>>({}) 存储临时推理内容
+   - SSE消息: reasoning -> 存入ref, reasoning_done -> 写入messages数组
+
+5. DeepSeek API 404错误 [2026-05]
+   - 修复: API URL从 https://api.deepseek.com 改为 https://api.deepseek.com/v3
+
+6. 管理员被VIP CDK降级为GOLD [2026-05]
+   - 位置: app/api/user/cdk-redeem/route.ts
+   - 修复: 兑换VIP前检查 isAdmin = user.role === "ADMIN"
+   - 如果是管理员: 只设置 goldExpiresAt, 不更改role
+
+7. ndqxwks16979@163.com 恢复管理员 [2026-05]
+   - 通过数据库直接操作 UPDATE User SET role='ADMIN' WHERE email='...'
+
+8. MiMo-V2.5-Pro 模型400错误
+   - 原因: 数据库中配置了不存在的模型名
+   - 解决: 通过管理后台 /admin 停用/编辑/删除该Provider
+
+
+十五、扩展/修改指南 (Modification Guide)
+================================================================================
+
+15.1 添加新的AI模型
+  1. 登录管理员后台 /admin -> AI模型 tab
+  2. 点击"添加模型"
+  3. 填写: 名称、API地址(需/chat/completions兼容)、API Key、模型标识名
+  4. 可选: 上传头像、设置启用状态
+  5. 用户端通过 /api/ai/providers 获取活跃列表
+
+  或者通过数据库直接插入 AiProvider 表记录
+
+15.2 添加新的前端页面
+  1. 在 app/ 下新建目录和 page.tsx
+  2. 使用 "use client" 指令(如需要客户端交互)
+  3. 如需API, 在 app/api/ 下新建对应目录和 route.ts
+  4. 在 app/drive/page.tsx 侧边栏添加导航入口
+  5. 如需布局, 添加 layout.tsx
+
+15.3 添加新的数据库模型
+  1. 编辑 prisma/schema.prisma
+  2. 运行 npx prisma migrate dev --name <迁移名>
+  3. 新模型TypeScript类型自动生成到 lib/generated/prisma/
+
+15.4 修改AI聊天行为
+  主文件: app/api/ai/chat/route.ts
+  - CONTEXT_BUDGET: Token预算上限(默认8000)
+  - SUMMARIZE_TRIGGER: 首次摘要触发消息数(默认20)
+  - SUMMARIZE_INTERVAL: 后续摘要间隔(默认12)
+  - systemPrompt: 系统提示词
+  - 摘要提示词: generateSummary() 函数内
+  - 记忆模式: /(记住|记下|备忘)[：:]\s*(.+)/
+
+15.5 添加新的Socket.IO事件
+  1. 在 lib/socket/server.ts 的 io.on("connection") 内添加监听器
+  2. 在客户端组件中通过 getChatSocket().emit("事件名", data) 发送
+  3. 如需服务端主动推送: 使用 getSocketServer().to(room).emit(...)
+
+15.6 部署流程
+  1. 提交代码到Git仓库
+  2. 运行 deploy.ps1 脚本(或手动SSH到服务器)
+  3. 服务器执行: git pull && npm install && npm run build && pm2 restart cloud-drive
+
+================================================================================
+十六、部署实战经验总结 (Deployment Experience)
+================================================================================
+
+本章节汇总了实际部署过程中遇到的问题和解决方案，供后续agent参考。
+
+16.1 当前服务器清单
+
+| 名称 | IP | 端口 | 用户 | 密码 | 状态 |
+|------|-----|------|------|------|------|
+| CN | 106.14.126.214 | 22 | root | Zholv155156. | 活跃 |
+| HK | 64.90.4.219 | 22 | root | ZnEGqMXjIRI8m0XZ | 活跃 |
+| HK(旧) | 38.54.85.8 | 22 | - | - | 已废弃 |
+
+16.2 Windows SSH 密码认证问题 (核心痛点)
+
+在 Windows 上使用 ssh 命令进行密码认证时，会遇到以下问题：
+
+(1) SSH_ASKPASS 环境变量干扰
+  - Windows 可能设置过 SSH_ASKPASS 环境变量（值为 "powershell"）
+  - 这导致 SSH 在非TTY环境下尝试调用 askpass 程序获取密码
+  - 结果是密码认证永远失败，报错 "The string is missing the terminator" + "Permission denied"
+
+(2) stdin管道传密码不可靠
+  - Linux上 `echo password | ssh` 通常可以工作
+  - Windows OpenSSH 不支持通过 stdin 管道传递密码
+  - 系统级 SSH_ASKPASS 设置会破坏这个机制
+
+(3) plink/sshpass 通常不可用
+  - plink (PuTTY命令行) 默认未安装
+  - sshpass (Linux密码中继工具) Windows上不存在
+
+16.3 推荐部署方式：Node.js + ssh2 库
+
+最可靠的Windows部署方式是使用 Node.js 的 ssh2 纯JS库，因为它在应用层处理SSH协议，
+不受系统SSH配置影响。
+
+部署步骤：
+
+  (1) 在临时目录安装ssh2:
+      $tmpDir = Join-Path $env:TEMP "ssh_deploy_$(Get-Random)"
+      New-Item -ItemType Directory -Force $tmpDir | Out-Null
+      cd $tmpDir
+      npm init -y --silent | Out-Null
+      npm install ssh2 --silent 2>&1 | Out-Null
+
+  (2) 编写deploy.js脚本 (模板):
+      const { Client } = require("ssh2");
+      const server = {
+        name: "CN",
+        host: "106.14.126.214",
+        port: 22,
+        username: "root",
+        password: "Zholv155156.",
+      };
+      const deployCmd = "cd /root/cloud-drive && git pull origin main && npm install && npm run build && pm2 delete cloud-drive 2>/dev/null; pm2 start 'npm run start' --name cloud-drive && pm2 save && echo === Deploy OK ===";
+
+      const conn = new Client();
+      conn.on("ready", () => {
+        console.log("Connected, executing deploy...");
+        conn.exec(deployCmd, { pty: true }, (err, stream) => {
+          if (err) { console.log("Exec error:", err.message); conn.end(); return; }
+          stream.on("close", (code) => {
+            console.log("Exit:", code);
+            conn.end();
+            process.exit(code);
+          });
+          stream.on("data", (data) => process.stdout.write(data.toString()));
+          stream.stderr.on("data", (data) => process.stderr.write(data.toString()));
+        });
+      });
+      conn.on("error", (err) => { console.log("Error:", err.message); process.exit(1); });
+      conn.connect({ host: server.host, port: server.port, username: server.username, password: server.password, readyTimeout: 10000 });
+
+  (3) 运行部署:
+      node deploy.js
+
+  (4) 清理:
+      用完删除临时目录即可
+
+16.4 Git拉取常见问题
+
+(1) 分支跟踪错误 "no tracking information"
+  服务器仓库可能是 `master` 分支，而远程是 `main`。
+  解决: 使用 `git pull origin main` 替代 `git pull`，明确指定分支。
+
+(2) 本地修改冲突 "Your local changes would be overwritten"
+  服务器上可能有之前agent或其他方式留下的未跟踪/已修改文件。
+  解决: 在git pull前先清理:
+      git checkout -- .          # 放弃所有已修改文件
+      git clean -fd              # 删除所有未跟踪文件
+      git pull origin main
+
+  ★ 注意: `git clean -fd` 会永久删除未跟踪文件（包括.env等配置），
+     使用前确认服务器上没有需要保留的本地文件！
+
+16.5 PM2进程管理常见问题
+
+(1) 进程ID变化 "Process N not found"
+  `pm2 restart cloud-drive` 使用进程名而非ID，如果进程已被其他操作删除会失败。
+  解决: 使用 delete + start 模式:
+      pm2 delete cloud-drive 2>/dev/null
+      pm2 start 'npm run start' --name cloud-drive
+      pm2 save
+  这样无论进程是否存在都能正常启动。
+
+(2) 多个同名进程
+  在部署失败重试后可能出现多个cloud-drive进程（ID不同）。
+  解决: 使用 `pm2 delete all` 清除所有进程后再启动，或 `pm2 delete cloud-drive` 删除同名进程。
+
+(3) 进程状态检查
+  部署后务必确认:
+      pm2 list          # 查看所有进程状态
+      pm2 logs cloud-drive --lines 20   # 查看最近日志
+
+16.6 完整的一键部署命令（推荐）
+
+对于新的部署，直接在服务器上执行以下命令即可：
+
+  cd /root/cloud-drive && git checkout -- . && git clean -fd && git pull origin main && npm install && npm run build && pm2 delete cloud-drive 2>/dev/null; pm2 start 'npm run start' --name cloud-drive && pm2 save && echo '=== Deploy OK ==='
+
+如果确定服务器没有本地修改（标准情况），简化为：
+
+  cd /root/cloud-drive && git pull origin main && npm install && npm run build && pm2 delete cloud-drive 2>/dev/null; pm2 start 'npm run start' --name cloud-drive && pm2 save && echo '=== Deploy OK ==='
+
+16.7 SSH连接失败的排查
+
+(1) 检查服务器是否可达:
+      Test-NetConnection <IP> -Port 22
+     或使用 ping
+
+(2) 检查是否走跳板(Jump Host):
+     如果本机连不上HK，可以先SSH到CN，再从CN跳转
+     CN到HK的SSH: ssh root@64.90.4.219
+
+(3) 检查防火墙:
+     国内网络可能封锁某些海外IP的SSH端口
+     可考虑通过CN服务器做跳板
+
+(4) 检查SSH服务:
+     在服务器上运行: systemctl status sshd
+
+16.8 deploy.ps1 使用说明
+
+文件: deploy.ps1
+当前配置: HK(64.90.4.219) + CN(106.14.126.214)
+前提: 需要安装 plink (PuTTY) 或配置SSH免密登录
+
+用法:
+  .\deploy.ps1 -Password "密码"
+  或交互式输入密码
+
+注意: 两台服务器使用不同密码时，deploy.ps1不适用（它假设同密码）
+      此时需要分两次手动部署或使用ssh2脚本
+
+================================================================================
+  文档结束
+================================================================================
