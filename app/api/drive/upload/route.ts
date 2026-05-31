@@ -170,7 +170,7 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
       currentFilePath = filePath;
       writeStream = fs.createWriteStream(filePath);
 
-      writeStream.on("error", (err) => {
+      writeStream.on("error", (err: Error) => {
         console.error("[Upload] WriteStream error:", err.message);
         fileError = true;
         cleanupFile();
@@ -187,7 +187,7 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
         }
       });
 
-      file.on("error", (err) => {
+      file.on("error", (err: Error) => {
         console.error("[Upload] File stream error:", err.message);
         fileError = true;
         cleanupFile();
@@ -200,10 +200,10 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
       file.pipe(writeStream, { end: false });
     });
 
-    busboy.on("error", (err) => {
-      console.error("[Upload] Busboy error:", err.message);
+    busboy.on("error", (err: any) => {
+      console.error("[Upload] Busboy error:", err?.message || err);
       cleanupFile();
-      reject(new Error(`上传解析错误: ${err.message}`));
+      reject(new Error(`上传解析错误: ${err?.message || err}`));
     });
 
     busboy.on("finish", () => {
@@ -231,7 +231,7 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
       reject(new Error("上传字段数超过限制"));
     });
 
-    nodeStream.on("error", (err) => {
+    nodeStream.on("error", (err: Error) => {
       console.error("[Upload] Node stream error:", err.message);
       cleanupFile();
       reject(err);
