@@ -120,26 +120,25 @@ interface UploadResult {
   originalName: string; storedName: string; mimeType: string; size: number; folderId?: number;
 }
 
+async function* readAllChunks(reader: ReadableStreamDefaultReader<Uint8Array>) {
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      yield Buffer.from(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 async function handleUpload(request: NextRequest, uploadDir: string): Promise<UploadResult | null> {
   const body = request.body;
   if (!body) return null;
   const contentType = request.headers.get("content-type") || "";
 
   const reader = body.getReader();
-  const nodeStream = new Readable({
-    async read() {
-      try {
-        const { done, value } = await reader.read();
-        if (done) {
-          this.push(null);
-        } else {
-          this.push(Buffer.from(value));
-        }
-      } catch (err: any) {
-        this.destroy(err);
-      }
-    },
-  });
+  const nodeStream = Readable.from(readAllChunks(reader));
 
   return new Promise((resolve, reject) => {
     const busboy = Busboy({
@@ -218,7 +217,7 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
     busboy.on("error", (err: any) => {
       console.error("[Upload] Busboy error:", err?.message || err);
       cleanupFile();
-      reader.cancel().catch(() => {});
+      nodeStream.destroy();
       reject(new Error(`上传解析错误: ${err?.message || err}`));
     });
 
@@ -250,7 +249,7 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
     nodeStream.on("error", (err: Error) => {
       console.error("[Upload] Node stream error:", err.message);
       cleanupFile();
-      reader.cancel().catch(() => {});
+      nodeStream.destroy();
       reject(err);
     });
 
