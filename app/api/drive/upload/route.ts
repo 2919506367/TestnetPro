@@ -98,8 +98,15 @@ export async function POST(request: NextRequest) {
       id: fileRecord.id, originalName: fileRecord.originalName,
       size: Number(fileRecord.size), createdAt: fileRecord.createdAt, folderId: fileRecord.folderId,
     });
-  } catch {
-    return NextResponse.json({ error: "上传失败，请稍后重试" }, { status: 500 });
+  } catch (err: any) {
+    console.error("[Upload] Error:", err?.message || err);
+    if (err?.code === "ECONNRESET") {
+      return NextResponse.json({ error: "上传连接被重置，请重试" }, { status: 500 });
+    }
+    if (err?.code === "ETIMEDOUT" || err?.code === "ESOCKETTIMEDOUT") {
+      return NextResponse.json({ error: "上传超时，请检查网络后重试" }, { status: 500 });
+    }
+    return NextResponse.json({ error: `上传失败: ${err?.message || err || "未知错误"}` }, { status: 500 });
   }
 }
 
@@ -131,6 +138,18 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
     let aborted = false;
     let writeStream: fs.WriteStream | null = null;
     let currentFilePath: string | null = null;
+    let fileError = false;
+
+    const cleanupFile = () => {
+      if (writeStream) {
+        try { writeStream.close(); } catch {}
+        writeStream = null;
+      }
+      if (currentFilePath) {
+        try { fs.unlinkSync(currentFilePath); } catch {}
+        currentFilePath = null;
+      }
+    };
 
     busboy.on("field", (fieldname: string, val: string) => {
       if (fieldname === "folderId" && val) {
@@ -151,31 +170,71 @@ async function handleUpload(request: NextRequest, uploadDir: string): Promise<Up
       currentFilePath = filePath;
       writeStream = fs.createWriteStream(filePath);
 
+      writeStream.on("error", (err) => {
+        console.error("[Upload] WriteStream error:", err.message);
+        fileError = true;
+        cleanupFile();
+        file.destroy();
+      });
+
       file.on("data", (chunk: Buffer) => {
-        fileResult!.size += chunk.length;
-        if (fileResult!.size > MAX_SINGLE_FILE) {
+        if (fileResult) fileResult.size += chunk.length;
+        if (fileResult && fileResult.size > MAX_SINGLE_FILE) {
           aborted = true;
+          fileError = true;
           file.destroy(new Error("File too large"));
-          writeStream?.close();
-          if (currentFilePath) fs.unlink(currentFilePath, () => {});
+          cleanupFile();
         }
       });
-      file.on("error", () => { if (currentFilePath) fs.unlink(currentFilePath, () => {}); });
-      file.pipe(writeStream);
+
+      file.on("error", (err) => {
+        console.error("[Upload] File stream error:", err.message);
+        fileError = true;
+        cleanupFile();
+      });
+
+      file.on("end", () => {
+        if (writeStream) writeStream.end();
+      });
+
+      file.pipe(writeStream, { end: false });
     });
 
-    busboy.on("error", () => {
-      if (currentFilePath) fs.unlink(currentFilePath, () => {});
-      if (writeStream) writeStream.close();
-      reject(new Error("Upload parse error"));
+    busboy.on("error", (err) => {
+      console.error("[Upload] Busboy error:", err.message);
+      cleanupFile();
+      reject(new Error(`上传解析错误: ${err.message}`));
     });
 
     busboy.on("finish", () => {
-      if (aborted) reject(new Error("File too large"));
-      else if (fileResult) {
+      if (aborted) {
+        reject(new Error("文件大小超过10GB限制"));
+      } else if (fileError && fileResult) {
+        reject(new Error("文件写入失败"));
+      } else if (fileResult) {
         if (folderId) fileResult.folderId = folderId;
         resolve(fileResult);
-      } else resolve(null);
+      } else {
+        resolve(null);
+      }
+    });
+
+    busboy.on("partsLimit", () => {
+      reject(new Error("上传文件太多"));
+    });
+
+    busboy.on("filesLimit", () => {
+      reject(new Error("上传文件数超过限制"));
+    });
+
+    busboy.on("fieldsLimit", () => {
+      reject(new Error("上传字段数超过限制"));
+    });
+
+    nodeStream.on("error", (err) => {
+      console.error("[Upload] Node stream error:", err.message);
+      cleanupFile();
+      reject(err);
     });
 
     nodeStream.pipe(busboy);
