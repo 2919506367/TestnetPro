@@ -12,6 +12,9 @@ const handle = app.getRequestHandler();
 
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
+    // 大文件上传需要更长的超时时间
+    req.setTimeout(0);
+    res.setTimeout(0);
     const parsedUrl = parse(req.url!, true);
     handle(req, res, parsedUrl);
   });

@@ -8,6 +8,10 @@ import Busboy from "busboy";
 import fs from "fs";
 import path from "path";
 
+// 禁用 Next.js 默认的 body 解析，使用 busboy 流式处理
+export const runtime = "nodejs";
+export const maxDuration = 3600; // 1小时超时
+
 const MAX_SINGLE_FILE = 10 * 1024 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
